@@ -1,0 +1,15 @@
+[Unit]
+Description=LifeSignal Raspberry Pi camera stream
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/LifeSignal
+ExecStart=/usr/bin/python3 %h/LifeSignal/camera_server.py --host 0.0.0.0 --port 8890
+Restart=on-failure
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

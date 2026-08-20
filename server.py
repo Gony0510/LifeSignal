@@ -26,10 +26,6 @@ DEFAULT_MODEL_CANDIDATES = {
         ARTIFACT_DIR / "vpr100-svm.joblib",
         ARTIFACT_DIR / "vpr100-cnn.keras",
     ),
-    "c4001": (
-        ARTIFACT_DIR / "c4001-svm.joblib",
-        ARTIFACT_DIR / "c4001-cnn.keras",
-    ),
 }
 
 
@@ -52,8 +48,12 @@ def sensor_family(data: dict) -> str | None:
     return None
 
 
-def select_ai_engine(data: dict) -> SensorAIEngine:
+def select_ai_engine(data: dict) -> SensorAIEngine | None:
     family = sensor_family(data)
+    # C4001은 현재 AI 모델을 사용하지 않습니다. V-PR100 모델이
+    # C4001 데이터에 잘못 적용되지 않도록 명시적으로 제외합니다.
+    if family == "c4001":
+        return None
     if family is not None and family in sensor_ai_engines:
         return sensor_ai_engines[family]
     return ai_engine
@@ -121,13 +121,32 @@ def process_message(message: str) -> tuple[str, str | None]:
         return message, None
 
     stabilized = detection_hold_filter.apply(data)
-    enriched = select_ai_engine(stabilized).enrich(stabilized)
-    enriched = survivor_state_tracker.enrich(enriched)
-    ai_data = enriched.get("ai")
-    enriched["rescue_priority"] = build_rescue_priority(
-        ai_data if isinstance(ai_data, dict) else {},
-        human_risk=enriched.get("human_risk"),
-    )
+    family = sensor_family(stabilized)
+    engine = select_ai_engine(stabilized)
+
+    if family == "c4001":
+        # C4001은 당분간 원시 센서 상태만 전달합니다.
+        # 나중에 이 빈 슬롯에 시연용 규칙 기반 결과를 연결할 수 있습니다.
+        enriched = dict(stabilized)
+        enriched["ai"] = {
+            "ready": False,
+            "disabled": True,
+            "target": None,
+            "target_ko": None,
+            "confidence": None,
+        }
+        enriched = survivor_state_tracker.enrich(enriched)
+        enriched.pop("rescue_priority", None)
+    else:
+        if engine is None:
+            engine = ai_engine
+        enriched = engine.enrich(stabilized)
+        enriched = survivor_state_tracker.enrich(enriched)
+        ai_data = enriched.get("ai")
+        enriched["rescue_priority"] = build_rescue_priority(
+            ai_data if isinstance(ai_data, dict) else {},
+            human_risk=enriched.get("human_risk"),
+        )
     return json.dumps(enriched, ensure_ascii=False), key
 
 
@@ -169,6 +188,14 @@ def print_sensor_summary(message: str) -> None:
         data = json.loads(message)
     except (json.JSONDecodeError, TypeError):
         print(f"수신한 데이터: {message}")
+        return
+
+    if sensor_family(data) == "c4001":
+        print(
+            "센서 수신: "
+            f"{data.get('room')}호 {data.get('location')} "
+            f"감지={data.get('status')}"
+        )
         return
 
     ai_data = data.get("ai") or {}
@@ -256,7 +283,8 @@ def parse_args() -> argparse.Namespace:
         help="학습된 SVM(.joblib) 또는 1D CNN(.keras) 모델 경로",
     )
     parser.add_argument("--vpr100-model", help="V-PR100 전용 AI 모델 경로")
-    parser.add_argument("--c4001-model", help="C4001 전용 AI 모델 경로")
+    # 기존 실행 명령과의 호환성을 위해 옵션만 남기고 실제 모델은 로드하지 않습니다.
+    parser.add_argument("--c4001-model", help=argparse.SUPPRESS)
     parser.add_argument(
         "--no-auto-models",
         action="store_true",
@@ -308,11 +336,11 @@ def configure_ai(args: argparse.Namespace) -> None:
         if not vpr100_model and discovered.get("vpr100"):
             vpr100_model = discovered["vpr100"]
             auto_selected["vpr100"] = discovered["vpr100"]
-        if not c4001_model and discovered.get("c4001"):
-            c4001_model = discovered["c4001"]
-            auto_selected["c4001"] = discovered["c4001"]
         for family, model_path in auto_selected.items():
             print(f"{family} 기본 AI 모델 자동 발견: {model_path}")
+
+    if c4001_model:
+        print("C4001 AI 모델 옵션은 현재 비활성화되어 모델을 로드하지 않습니다.")
 
     sensor_ai_engines = {}
     classifier = None
@@ -327,7 +355,7 @@ def configure_ai(args: argparse.Namespace) -> None:
             f"(종류={classifier.model_name}, "
             f"윈도우={classifier.window_size}개)"
         )
-    elif not vpr100_model and not c4001_model:
+    elif not vpr100_model:
         print(
             "AI 모델이 지정되지 않았습니다. 센서 중계는 계속하며 "
             "대시보드에는 '모델 없음'으로 표시합니다."
@@ -338,10 +366,7 @@ def configure_ai(args: argparse.Namespace) -> None:
         update_interval=args.ai_update_interval,
     )
 
-    for family, model_value in (
-        ("vpr100", vpr100_model),
-        ("c4001", c4001_model),
-    ):
+    for family, model_value in (("vpr100", vpr100_model),):
         if not model_value:
             continue
         model_path = Path(model_value)
