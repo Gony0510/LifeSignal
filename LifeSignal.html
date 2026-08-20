@@ -381,7 +381,8 @@
         }
 
         .red-dot {
-            width: 24px; height: 24px; background-color: #ff0000; border-radius: 50%;
+            --dot-color: #ff0000;
+            width: 24px; height: 24px; background-color: var(--dot-color); border-radius: 50%;
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             animation: pulse-dot 1s infinite alternate;
             transition: left .45s ease-out, top .45s ease-out;
@@ -392,13 +393,16 @@
         }
         .red-dot.selected-survivor {
             border-color: #ffcc00;
-            box-shadow: 0 0 0 5px rgba(255, 204, 0, .28), 0 0 22px #ff0000;
+            box-shadow: 0 0 0 5px rgba(255, 204, 0, .28), 0 0 22px var(--dot-color);
         }
+        .red-dot.priority-critical { --dot-color: #ff0000; }
+        .red-dot.priority-normal { --dot-color: #ff9800; }
+        .red-dot.priority-pet { --dot-color: #4caf50; }
         #zone-거실A .red-dot, #zone-거실B .red-dot { top: 30%; }
 
         @keyframes pulse-dot {
-            from { box-shadow: 0 0 5px #ff0000, 0 0 10px #ff0000; transform: translate(-50%, -50%) scale(1); }
-            to { box-shadow: 0 0 15px #ff0000, 0 0 30px #ff0000; transform: translate(-50%, -50%) scale(1.3); }
+            from { box-shadow: 0 0 5px var(--dot-color), 0 0 10px var(--dot-color); transform: translate(-50%, -50%) scale(1); }
+            to { box-shadow: 0 0 15px var(--dot-color), 0 0 30px var(--dot-color); transform: translate(-50%, -50%) scale(1.3); }
         }
 
         .monitoring-panel {
@@ -420,8 +424,20 @@
         .sensor-card.full-width { grid-column: 1 / -1; }
         .sensor-card.priority-card {
             padding: 18px 16px;
+            background: #1b1b1b;
+            border-color: #555;
+        }
+        .sensor-card.priority-card.priority-card-critical {
+            background: #301416;
+            border-color: #ff5252;
+        }
+        .sensor-card.priority-card.priority-card-normal {
             background: #201d12;
             border-color: #5d4e1b;
+        }
+        .sensor-card.priority-card.priority-card-pet {
+            background: #142817;
+            border-color: #4caf50;
         }
         .sensor-label {
             display: block;
@@ -442,8 +458,8 @@
         .sensor-value.ai-pending { color: #888; font-size: 13px; }
         .priority-value { font-size: 24px; color: #ffcc00; }
         .priority-value.priority-critical { color: #ff5252; }
-        .priority-value.priority-normal { color: #ffcc00; }
-        .priority-value.priority-pet { color: #58b8ff; }
+        .priority-value.priority-normal { color: #ff9800; }
+        .priority-value.priority-pet { color: #4caf50; }
         .priority-value.priority-muted { color: #888; }
 
         .camera-panel {
@@ -998,6 +1014,7 @@
                 metricStatus.classList.remove('active');
                 metricPriority.textContent = '대상 선택 대기';
                 metricPriority.className = 'sensor-value priority-value priority-muted';
+                setPriorityCardColor('');
                 const aiTarget = document.getElementById('metric-ai-target');
                 aiTarget.textContent = '분석 대기';
                 aiTarget.className = 'sensor-value ai-pending';
@@ -1033,6 +1050,7 @@
                 'priority-muted'
             );
             if (priority.className) metricPriority.classList.add(priority.className);
+            setPriorityCardColor(priority.className);
 
             const aiTarget = document.getElementById('metric-ai-target');
             const aiConfidence = document.getElementById('metric-ai-confidence');
@@ -1114,15 +1132,32 @@
                 return { text: 'AI 분석 대기', className: 'priority-muted' };
             }
             if (ai.target === 'dog' || ai.target === 'pet') {
-                return { text: '낮음 · 반려동물', className: 'priority-pet' };
+                return { text: '3순위 · 반려동물', className: 'priority-pet' };
             }
             if (ai.target === 'empty') {
                 return { text: '구조 대상 없음', className: 'priority-muted' };
             }
             if (ai.target === 'human') {
-                return { text: '보통 · 사람', className: 'priority-normal' };
+                return { text: '2순위 · 보통 · 사람', className: 'priority-normal' };
             }
             return { text: 'AI 판정 대기', className: 'priority-muted' };
+        }
+
+        function setPriorityCardColor(priorityClass) {
+            const card = document.querySelector('.priority-card');
+            if (!card) return;
+            card.classList.remove(
+                'priority-card-critical',
+                'priority-card-normal',
+                'priority-card-pet'
+            );
+            const cardClassByPriority = {
+                'priority-critical': 'priority-card-critical',
+                'priority-normal': 'priority-card-normal',
+                'priority-pet': 'priority-card-pet'
+            };
+            const cardClass = cardClassByPriority[priorityClass];
+            if (cardClass) card.classList.add(cardClass);
         }
 
         function scheduleRoomMarkers(roomNum) {
@@ -1270,6 +1305,11 @@
                 });
                 container.append(dot);
             }
+            const priorityClass = formatRescuePriority(reading).className;
+            dot.classList.remove('priority-critical', 'priority-normal', 'priority-pet');
+            if (['priority-critical', 'priority-normal', 'priority-pet'].includes(priorityClass)) {
+                dot.classList.add(priorityClass);
+            }
             dot.classList.toggle('selected-survivor', selectedReadingKey === key);
             dot.style.left = `${targetX}px`;
             dot.style.top = `${targetY}px`;
@@ -1287,7 +1327,10 @@
             label.style.left = `${targetX}px`;
             label.style.top = `${targetY}px`;
             const distanceText = distanceM === null ? '거리 미측정' : `${distanceM.toFixed(2)} m`;
-            label.textContent = `${reading.location || '위치 미지정'} · ${distanceText} · ${formatRescuePriority(reading).text}`;
+            const priorityText = formatRescuePriority(reading).text;
+            label.textContent = [reading.location || '위치 미지정', distanceText, priorityText]
+                .filter(Boolean)
+                .join(' · ');
         }
 
         function closeModal() {

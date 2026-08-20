@@ -72,8 +72,8 @@ def build_rescue_priority(
     if target in {"dog", "pet"}:
         return {
             "level": "low",
-            "rank": 1,
-            "label_ko": "낮음 · 반려동물",
+            "rank": 3,
+            "label_ko": "3순위 · 반려동물",
             "target_type": "dog",
             "reason_codes": ["pet_detected"],
             "updated_at": timestamp,
@@ -82,8 +82,10 @@ def build_rescue_priority(
         danger, risk_score = _human_risk(human_risk)
         result = {
             "level": "danger" if danger else "normal",
-            "rank": 3 if danger else 2,
-            "label_ko": "위험 · 사람" if danger else "보통 · 사람",
+            "rank": 1 if danger else 2,
+            "label_ko": (
+                "1순위 · 위험 · 사람" if danger else "2순위 · 보통 · 사람"
+            ),
             "target_type": "human",
             "reason_codes": [
                 "human_detected",
