@@ -1,0 +1,8 @@
+aiohttp
+joblib
+numpy
+pandas
+pyserial
+scikit-learn
+tensorflow
+websockets

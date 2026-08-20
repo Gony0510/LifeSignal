@@ -1,0 +1,15 @@
+[Unit]
+Description=LifeSignal V-PR100 serial bridge
+Wants=lifesignal-server.service
+After=lifesignal-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/LifeSignal
+ExecStart=%h/LifeSignal/.venv/bin/python %h/LifeSignal/serial_bridge.py --protocol auto
+Restart=on-failure
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

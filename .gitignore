@@ -1,0 +1,41 @@
+# Python environments and generated files
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local configuration and operating-system files
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Raw sensor data and backups
+AI/data/*.csv
+AI/data/backups/
+ForMov/data/*.csv
+ForMov/data/backups/
+
+# Trained model artifacts and backups
+AI/artifacts/
+ForMov/artifacts/
+*.joblib
+*.keras
+*.h5
+
+# Tests and documentation
+tests/
+ForMov/tests/
+*.md
+SERIAL_GUIDE.md
+
+# iOS mobile app (excluded from this repository)
+LifeSignal_iOS/
+
+# Xcode/build output
+DerivedData/
+build/
+*.xcuserstate

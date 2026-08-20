@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>인형 펌프질 주기 가이드</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --page: #080c13;
+        --card: #121822;
+        --card-edge: rgba(255, 255, 255, 0.1);
+        --stage: #0d131c;
+        --muted: #8d98a9;
+        --human: #ff705f;
+        --dog: #8bd3f5;
+        --human-rgb: 255, 112, 95;
+        --dog-rgb: 139, 211, 245;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% -20%, rgba(81, 104, 139, 0.18), transparent 42%),
+          var(--page);
+        color: #f7f9fc;
+        font-family: Inter, Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: 100%;
+        height: 100vh;
+        padding: 16px;
+      }
+
+      .subject-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        width: 100%;
+        height: 100%;
+      }
+
+      .subject-card {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        border: 1px solid var(--card-edge);
+        border-radius: 22px;
+        background: linear-gradient(160deg, rgba(24, 31, 43, 0.98), rgba(13, 18, 27, 0.98));
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+      }
+
+      .subject-card--human {
+        --accent: var(--human);
+        --accent-rgb: var(--human-rgb);
+        --cycle: 3s;
+        --chest-x: 50%;
+        --chest-y: 67%;
+        --mask-w: 42%;
+        --mask-h: 15%;
+      }
+
+      .subject-card--dog {
+        --accent: var(--dog);
+        --accent-rgb: var(--dog-rgb);
+        --cycle: 1.5s;
+        --chest-x: 50%;
+        --chest-y: 73%;
+        --mask-w: 44%;
+        --mask-h: 15%;
+      }
+
+      .subject-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 76px;
+        padding: 14px 18px 13px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .subject-index {
+        display: grid;
+        flex: 0 0 auto;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border: 1px solid rgba(var(--accent-rgb), 0.52);
+        border-radius: 13px;
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+      }
+
+      .subject-name {
+        min-width: 0;
+      }
+
+      .subject-name h1 {
+        margin: 0;
+        font-size: clamp(20px, 2.1vw, 28px);
+        line-height: 1.05;
+        letter-spacing: -0.06em;
+      }
+
+      .subject-name p {
+        margin: 7px 0 0;
+        color: #8c97a8;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.17em;
+        text-transform: uppercase;
+      }
+
+      .rate-pill {
+        margin-left: auto;
+        flex: 0 0 auto;
+        padding: 10px 13px;
+        border: 1px solid rgba(var(--accent-rgb), 0.34);
+        border-radius: 999px;
+        background: rgba(var(--accent-rgb), 0.08);
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .image-stage {
+        position: relative;
+        display: grid;
+        min-height: 0;
+        place-items: center;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 52%, rgba(var(--accent-rgb), 0.08), transparent 34%),
+          var(--stage);
+      }
+
+      .image-stage::before {
+        position: absolute;
+        inset: 14px;
+        z-index: 0;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 18px;
+        content: "";
+        pointer-events: none;
+        animation: stageBreathPulse var(--cycle) infinite cubic-bezier(0.36, 0, 0.22, 1);
+        will-change: border-color, box-shadow;
+      }
+
+      .image-stage::after {
+        display: none;
+      }
+
+      .doll-visual {
+        position: relative;
+        z-index: 1;
+        width: min(96%, 760px);
+        height: 100%;
+        max-height: min(1000px, 78vh);
+      }
+
+      .doll-image {
+        position: absolute;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        object-position: center;
+        user-select: none;
+        -webkit-user-drag: none;
+      }
+
+      .doll-image--bulge {
+        z-index: 2;
+        transform-origin: var(--chest-x) var(--chest-y);
+        -webkit-mask-image: radial-gradient(
+          ellipse var(--mask-w) var(--mask-h) at var(--chest-x) var(--chest-y),
+          #000 0 48%,
+          rgba(0, 0, 0, 0.74) 67%,
+          transparent 100%
+        );
+        mask-image: radial-gradient(
+          ellipse var(--mask-w) var(--mask-h) at var(--chest-x) var(--chest-y),
+          #000 0 48%,
+          rgba(0, 0, 0, 0.74) 67%,
+          transparent 100%
+        );
+        animation: chestBulge var(--cycle) infinite cubic-bezier(0.36, 0, 0.22, 1);
+        will-change: transform, filter;
+      }
+
+      @keyframes stageBreathPulse {
+        0%,
+        100% {
+          border-color: rgba(255, 255, 255, 0.07);
+          box-shadow: none;
+        }
+
+        28% {
+          border-color: rgba(255, 151, 144, 0.88);
+          box-shadow: 0 0 0 2px rgba(255, 141, 134, 0.22), 0 0 30px rgba(255, 119, 111, 0.24), inset 0 0 16px rgba(255, 132, 124, 0.06);
+        }
+
+        50% {
+          border-color: rgba(255, 255, 255, 0.07);
+          box-shadow: none;
+        }
+      }
+
+      @keyframes chestBulge {
+        0%,
+        100% {
+          transform: scale(1, 1);
+          filter: none;
+        }
+
+        18% {
+          transform: scale(1.08, 1.13);
+          filter: none;
+        }
+
+        28% {
+          transform: scale(1.23, 1.32);
+          filter: none;
+        }
+
+        42% {
+          transform: scale(1.14, 1.2);
+          filter: none;
+        }
+
+        64% {
+          transform: scale(1.012, 1.018);
+          filter: none;
+        }
+      }
+
+      .guide-footer {
+        padding: clamp(16px, 1.25vw, 28px) clamp(22px, 1.6vw, 36px) clamp(18px, 1.35vw, 30px);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .guide-heading {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .guide-heading span:first-child {
+        color: #909aaa;
+        font-size: clamp(14px, 1vw, 20px);
+        font-weight: 700;
+      }
+
+      .guide-heading strong {
+        color: var(--accent);
+        font-size: clamp(28px, 2vw, 40px);
+        line-height: 1.1;
+        letter-spacing: -0.05em;
+      }
+
+      .guide-rail {
+        position: relative;
+        height: clamp(8px, 0.55vw, 12px);
+        margin-top: clamp(12px, 0.9vw, 18px);
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.11);
+      }
+
+      .guide-rail::after {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        border-radius: inherit;
+        background: var(--accent);
+        content: "";
+        transform-origin: left center;
+        animation: guideProgress var(--cycle) infinite linear;
+        will-change: transform;
+      }
+
+      @keyframes guideProgress {
+        0% {
+          transform: scaleX(0);
+        }
+
+        100% {
+          transform: scaleX(1);
+        }
+      }
+
+      .guide-note {
+        margin: clamp(10px, 0.8vw, 16px) 0 0;
+        color: #aab3c0;
+        font-size: clamp(14px, 0.95vw, 18px);
+        line-height: 1.45;
+      }
+
+      @media (max-width: 760px) {
+        body {
+          overflow-y: auto;
+        }
+
+        main {
+          height: auto;
+          min-height: 100vh;
+          padding: 10px;
+        }
+
+        .subject-grid {
+          grid-template-columns: 1fr;
+          height: auto;
+        }
+
+        .subject-card {
+          min-height: 650px;
+        }
+
+        .image-stage {
+          min-height: 455px;
+        }
+
+        .doll-visual {
+          width: 96%;
+          max-height: min(620px, 74vh);
+        }
+
+        .guide-footer {
+          padding: 15px 18px 18px;
+        }
+
+        .guide-heading strong {
+          font-size: 24px;
+        }
+
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .image-stage::before,
+        .doll-image--bulge,
+        .guide-rail::after {
+          animation-play-state: paused;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="subject-grid" aria-label="인형 펌프질 주기 가이드">
+        <article class="subject-card subject-card--human">
+          <header class="subject-header">
+            <span class="subject-index" aria-hidden="true">01</span>
+            <div class="subject-name">
+              <h1>사람 인형</h1>
+              <p>Human Doll</p>
+            </div>
+            <span class="rate-pill">20회 / 분</span>
+          </header>
+
+          <div class="image-stage">
+            <div class="doll-visual" aria-label="가슴이 부풀어 오르는 사람 인형">
+              <img class="doll-image" src="assets/person-doll-cutout.png" alt="사람 인형" />
+              <img class="doll-image doll-image--bulge" src="assets/person-doll-cutout.png" alt="" aria-hidden="true" />
+            </div>
+          </div>
+
+          <footer class="guide-footer">
+            <div class="guide-heading">
+              <span>펌프질 주기</span>
+              <strong>3초마다 1회</strong>
+            </div>
+            <div class="guide-rail" aria-hidden="true"></div>
+            <p class="guide-note">가슴이 부풀고 가라앉는 리듬을 따라가세요.</p>
+          </footer>
+        </article>
+
+        <article class="subject-card subject-card--dog">
+          <header class="subject-header">
+            <span class="subject-index" aria-hidden="true">02</span>
+            <div class="subject-name">
+              <h1>개 인형</h1>
+              <p>Dog Doll</p>
+            </div>
+            <span class="rate-pill">40회 / 분</span>
+          </header>
+
+          <div class="image-stage">
+            <div class="doll-visual" aria-label="가슴이 부풀어 오르는 개 인형">
+              <img class="doll-image" src="assets/dog-doll-cutout.png" alt="개 인형" />
+              <img class="doll-image doll-image--bulge" src="assets/dog-doll-cutout.png" alt="" aria-hidden="true" />
+            </div>
+          </div>
+
+          <footer class="guide-footer">
+            <div class="guide-heading">
+              <span>펌프질 주기</span>
+              <strong>1.5초마다 1회</strong>
+            </div>
+            <div class="guide-rail" aria-hidden="true"></div>
+            <p class="guide-note">사람 인형보다 빠른 리듬으로 반복합니다.</p>
+          </footer>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

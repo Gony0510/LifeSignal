@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Signal - Command Center</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        body { 
+            background-color: #121212; 
+            color: #ffffff; 
+            font-family: 'Malgun Gothic', sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #555; 
+            padding: 12px 20px;
+            width: 100%;
+            flex-shrink: 0;
+        }
+        h1 { 
+            margin: 0;
+            text-align: left; 
+            letter-spacing: 2px;
+        }
+        .connection-panel {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .connection-state {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            color: #888;
+            font-size: 13px;
+        }
+        .connection-state::before {
+            content: "";
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #666;
+        }
+        .connection-state.online { color: #57e39b; }
+        .connection-state.online::before { background: #00cc66; box-shadow: 0 0 9px #00cc66; }
+        .connection-state.connecting::before { background: #ff9900; }
+        .connection-panel input {
+            padding: 8px;
+            font-size: 16px;
+            background-color: #222;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            width: 140px;
+            text-align: center;
+        }
+        .connection-panel button {
+            padding: 8px 20px;
+            font-size: 16px;
+            background-color: #ffcc00;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        .connection-panel button:hover {
+            background-color: #e6b800;
+        }
+
+        .dashboard { 
+            display: flex; 
+            gap: 20px; 
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            padding: 16px 20px 20px;
+        }
+        .map-container {
+            flex: 2;
+            min-width: 0;
+            min-height: 0;
+            background-color: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #building-map {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+        }
+        
+        .log-container { 
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            background-color: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .floor {
+            display: flex;
+            gap: 15px;
+            flex: 1;
+            min-height: 70px;
+        }
+        .floor-label {
+            width: 60px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(16px, 2vw, 24px);
+            font-weight: bold;
+            color: #666;
+        }
+        
+        .room { 
+            flex: 1;
+            min-height: 60px;
+            background-color: #2a2a2a;
+            border: 2px solid #333; 
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center;
+            font-size: clamp(14px, 1.8vw, 22px);
+            font-weight: bold;
+            color: #555; 
+            transition: all 0.2s ease;
+            cursor: pointer; 
+        }
+        .room:hover { background-color: #3a3a3a; }
+
+        .room.alert { background-color: #ffffff; color: #000000; border: 4px solid #cccccc; animation: blink 1.5s infinite alternate; }
+        @keyframes blink { from { box-shadow: 0 0 10px #ffffff; } to { box-shadow: 0 0 40px #ffffff; } }
+
+        .room.selected { border: 4px solid #ffcc00; box-shadow: 0 0 15px rgba(255, 204, 0, 0.5); }
+        .room.alert.selected { border: 4px solid #ffcc00; }
+
+        .map-container h3,
+        .log-container h3,
+        .log-header {
+            flex-shrink: 0;
+        }
+
+        .log-header {
+            font-size: 18px;
+            color: #ffcc00;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed #555;
+            font-weight: bold;
+        }
+
+        .modal-status-text {
+            flex-shrink: 0;
+            text-align: center;
+            font-size: clamp(14px, 1.5vw, 18px);
+            margin: 16px 0 0;
+            font-weight: bold;
+        }
+        .log-entry {
+            display: grid;
+            grid-template-columns: auto auto minmax(0, 1fr);
+            align-items: start;
+            gap: 7px;
+            font-size: 13px;
+            border-bottom: 1px solid #292929;
+            padding: 7px 0;
+            color: #bbbbbb;
+        }
+        .log-time { color: #777; font-size: 11px; white-space: nowrap; }
+        .log-alert { color: #ffffff; font-weight: bold; }
+        .log-badge {
+            min-width: 32px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            background: #292929;
+            color: #aaa;
+            font-size: 10px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .log-badge.status { background: #461b1b; color: #ff8b8b; }
+        .log-message { min-width: 0; line-height: 1.4; }
+        
+        #log-list { overflow-y: auto; flex: 1; }
+
+        .modal { 
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; 
+            background-color: rgba(0,0,0,0.85); align-items: center; justify-content: center; 
+        }
+        
+        .modal-content { 
+            background-color: #1a1a1a;
+            padding: 30px;
+            border: 2px solid #555;
+            border-radius: 10px; 
+            width: 96vw;
+            height: 92vh;
+            max-width: none;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            display: flex;
+            gap: 30px;
+            overflow: hidden;
+        }
+
+        .modal-floorplan-panel {
+            flex: 2.5;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+        
+        .close-btn { 
+            color: #aaa; position: absolute; top: 15px; right: 25px; font-size: 35px; font-weight: bold; cursor: pointer; z-index: 20;
+        }
+        .close-btn:hover { color: #fff; }
+        
+        .fp-wrapper { 
+            display: grid; 
+            position: relative;
+            grid-template-columns: 2fr 3fr 2fr; 
+            grid-template-rows: 7fr 3fr; 
+            grid-template-areas: 
+                "room1 living room2"
+                "corr  corr   corr"; 
+            gap: 6px; 
+            flex: 1;
+            min-height: 0;
+            background: #333;
+            padding: 8px;
+            border-radius: 5px; 
+        }
+        
+        .fp-zone { 
+            background-color: #1a1a1a; border: 2px solid #555; display: flex; align-items: center; 
+            justify-content: center; position: relative; color: #888; font-size: 15px; font-weight: bold; 
+        }
+
+        .zone-room1 { grid-area: room1; z-index: 10; font-size: 20px; }
+        .zone-living { grid-area: living; z-index: 10; font-size: 20px; } 
+        .zone-room2 { 
+            grid-area: room2; z-index: 10; font-size: 20px; 
+            height: calc(100% + 35px); box-shadow: 0 6px 0 0 #333; 
+        }
+        .zone-corr { 
+            grid-area: corr; background-color: #262626; border: 2px solid #555; 
+            color: #666; font-size: 20px; letter-spacing: 5px; z-index: 1; 
+        }
+
+        .door { position: absolute; background-color: #1a1a1a; z-index: 20; }
+        .door-bottom-small { bottom: -10px; width: 72px; height: 10px; left: 50%; transform: translateX(-50%); border-left: 2px solid #555; border-right: 2px solid #555; }
+        .door-bottom-large { bottom: -10px; width: 343px; height: 10px; left: 50%; transform: translateX(-50%); border-left: 2px solid #555; border-right: 2px solid #555; }
+        .door-left-room2 { left: -10px; width: 10px; height: 72px; top: 20%; transform: translateY(-50%); border-top: 2px solid #555; border-bottom: 2px solid #555; }
+        .door-left-living { left: -10px; width: 10px; height: 72px; top: 50%; transform: translateY(-50%); border-top: 2px solid #555; border-bottom: 2px solid #555; }
+
+        .fp-wrapper-401 {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+            background: #1a1a1a;
+            border: 6px solid #444;
+            border-radius: 5px;
+            overflow: visible;
+            display: none;
+        }
+
+        /* 401호: 좌측 상단 방, 아래쪽 문 개구부, 우측 하단 현관문 */
+        .wall-horizontal-a {
+            position: absolute;
+            top: 40%;
+            left: 0;
+            width: 32%;
+            height: 6px;
+            background: #444;
+            z-index: 15;
+        }
+        .wall-vertical-a {
+            position: absolute;
+            top: 0;
+            left: 45%;
+            width: 6px;
+            height: 40%;
+            background: #444;
+            z-index: 15;
+        }
+
+        .zone-living-a { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; }
+        .zone-living-a-text { position: absolute; top: 67%; left: 50%; transform: translate(-50%, -50%); color: #888; font-size: 24px; font-weight: bold; }
+        .zone-room-a { position: absolute; top: 0; left: 0; width: 45%; height: 40%; background: transparent; z-index: 16; display: flex; align-items: center; justify-content: center; color: #888; font-size: 24px; font-weight: bold; }
+
+        .door-main-a {
+            position: absolute;
+            right: -10px;
+            bottom: 0;
+            width: 16px;
+            height: 20%;
+            background: #1a1a1a;
+            z-index: 20;
+        }
+
+        .fp-wrapper-402 {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+            background: #1a1a1a;
+            border: 6px solid #444;
+            border-radius: 5px;
+            overflow: visible;
+            display: none;
+        }
+
+        /* 402호: 401호 평면도를 좌우 대칭한 구조 */
+        .wall-horizontal-b {
+            position: absolute;
+            top: 40%;
+            right: 0;
+            width: 32%;
+            height: 6px;
+            background: #444;
+            z-index: 15;
+        }
+        .wall-vertical-b {
+            position: absolute;
+            top: 0;
+            right: 45%;
+            width: 6px;
+            height: 40%;
+            background: #444;
+            z-index: 15;
+        }
+
+        .zone-living-b { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; }
+        .zone-living-b-text { position: absolute; top: 67%; left: 50%; transform: translate(-50%, -50%); color: #888; font-size: 24px; font-weight: bold; }
+        .zone-room-b { position: absolute; top: 0; right: 0; width: 45%; height: 40%; background: transparent; z-index: 16; display: flex; align-items: center; justify-content: center; color: #888; font-size: 24px; font-weight: bold; }
+
+        .door-main-b {
+            position: absolute;
+            left: -10px;
+            bottom: 0;
+            width: 16px;
+            height: 20%;
+            background: #1a1a1a;
+            z-index: 20;
+        }
+
+        .red-dot {
+            width: 24px; height: 24px; background-color: #ff0000; border-radius: 50%;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            animation: pulse-dot 1s infinite alternate;
+            transition: left .45s ease-out, top .45s ease-out;
+            z-index: 30;
+            cursor: pointer;
+            border: 2px solid transparent;
+            outline: none;
+        }
+        .red-dot.selected-survivor {
+            border-color: #ffcc00;
+            box-shadow: 0 0 0 5px rgba(255, 204, 0, .28), 0 0 22px #ff0000;
+        }
+        #zone-거실A .red-dot, #zone-거실B .red-dot { top: 30%; }
+
+        @keyframes pulse-dot {
+            from { box-shadow: 0 0 5px #ff0000, 0 0 10px #ff0000; transform: translate(-50%, -50%) scale(1); }
+            to { box-shadow: 0 0 15px #ff0000, 0 0 30px #ff0000; transform: translate(-50%, -50%) scale(1.3); }
+        }
+
+        .monitoring-panel {
+            flex: 1; background-color: #111; border: 1px solid #444; border-radius: 8px; 
+            padding: 18px; display: flex; flex-direction: column; min-width: 300px;
+            overflow: hidden; 
+        }
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .sensor-card {
+            background: #1b1b1b;
+            border: 1px solid #353535;
+            border-radius: 8px;
+            padding: 13px 14px;
+        }
+        .sensor-card.full-width { grid-column: 1 / -1; }
+        .sensor-card.priority-card {
+            padding: 18px 16px;
+            background: #201d12;
+            border-color: #5d4e1b;
+        }
+        .sensor-label {
+            display: block;
+            color: #777;
+            font-size: 10px;
+            margin-bottom: 3px;
+        }
+        .sensor-value {
+            color: #f2f2f2;
+            font-size: 17px;
+            font-weight: bold;
+        }
+        .sensor-value.active { color: #ff5252; }
+        .sensor-value.ai-human { color: #ffcc00; }
+        .sensor-value.ai-pet,
+        .sensor-value.ai-dog { color: #58b8ff; }
+        .sensor-value.ai-empty { color: #8f8f8f; }
+        .sensor-value.ai-pending { color: #888; font-size: 13px; }
+        .priority-value { font-size: 24px; color: #ffcc00; }
+        .priority-value.priority-critical { color: #ff5252; }
+        .priority-value.priority-normal { color: #ffcc00; }
+        .priority-value.priority-pet { color: #58b8ff; }
+        .priority-value.priority-muted { color: #888; }
+        .zone-name {
+            display: inline-block;
+            position: relative;
+            z-index: 31;
+        }
+        .zone-name.sensor-installed {
+            color: #238cff !important;
+            -webkit-text-stroke: 1px #b9ddff;
+            paint-order: stroke fill;
+            text-shadow:
+                0 0 5px #238cff,
+                0 0 12px rgba(35, 140, 255, .9),
+                0 0 24px rgba(35, 140, 255, .55);
+        }
+        .position-label {
+            position: absolute;
+            transform: translate(-50%, -42px);
+            z-index: 32;
+            color: #fff;
+            background: rgba(0,0,0,.78);
+            border: 1px solid #ff5252;
+            border-radius: 5px;
+            padding: 4px 7px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity .15s ease, visibility .15s ease;
+        }
+        .red-dot:hover + .position-label {
+            opacity: 1;
+            visibility: visible;
+        }
+        @media (max-width: 900px) {
+            html, body { height: auto; min-height: 100%; overflow: auto; }
+            .header-container, .dashboard, .modal-content { flex-direction: column; }
+            .connection-panel { width: 100%; flex-wrap: wrap; }
+            .dashboard { min-height: 900px; }
+            .modal-content { overflow-y: auto; height: 96vh; }
+            .modal-floorplan-panel { min-height: 480px; width: 100%; }
+            .monitoring-panel { width: 100%; min-height: 360px; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header-container">
+        <h1>LIFE SIGNAL : COMMAND CENTER</h1>
+        <div class="connection-panel">
+            <span id="connection-state" class="connection-state">연결 안 됨</span>
+            <span style="font-size: 14px; color: #888;">중계 서버 IP:</span>
+            <input type="text" id="ip-input" placeholder="예: 192.168.0.1">
+            <button onclick="connectWebSocket()" id="connect-btn">망 접속</button>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="map-container">
+            <h3 style="margin-top:0; color: #888; display:flex; justify-content:space-between;">
+                <span>생존자 위치 정보</span>
+                <span style="font-size:14px; color:#555;">호수를 클릭하면 내부 평면도와 생존자 정밀 위치가 표시됩니다.</span>
+            </h3>
+            <div id="building-map"></div>
+        </div>
+        <div class="log-container">
+            <h3 style="margin-top:0; color: #888;">매시 네트워크 수신 로그</h3>
+            <div id="log-status" class="log-header">전체 수신 로그 (All)</div>
+            <div id="log-list"></div>
+        </div>
+    </div>
+
+    <div id="floorplan-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            
+            <div class="modal-floorplan-panel">
+                <h2 id="modal-title" style="margin-top: 0; color: #fff;">000호 내부 평면도</h2>
+                
+                <div class="fp-wrapper" id="fp-default">
+                    <div class="fp-zone zone-room1" id="zone-방1">
+                        <span class="zone-name">방1</span>
+                        <div class="door door-right"></div> 
+                    </div>
+                    <div class="fp-zone zone-living" id="zone-거실">
+                        <span class="zone-name">거실</span>
+                        <div class="door door-left-living"></div>
+                        <div class="door door-bottom-large"></div> 
+                    </div>
+                    <div class="fp-zone zone-room2" id="zone-방2">
+                        <span class="zone-name">방2</span>
+                        <div class="door door-bottom-small"></div> 
+                        <div class="door door-left-room2"></div>
+                    </div>
+                    <div class="fp-zone zone-corr" id="zone-복도"><span class="zone-name">복도</span></div>
+                </div>
+
+                <div class="fp-wrapper-401" id="fp-401">
+                    <div class="zone-living-a" id="zone-거실A">
+                        <div class="zone-living-a-text"><span class="zone-name">거실 A</span></div>
+                        <div class="door-main-a"></div>
+                    </div>
+                    <div class="zone-room-a" id="zone-방A">
+                        <span class="zone-name">방 A</span>
+                    </div>
+                    <div class="wall-horizontal-a"></div>
+                    <div class="wall-vertical-a"></div>
+                </div>
+
+                <div class="fp-wrapper-402" id="fp-402">
+                    <div class="zone-living-b" id="zone-거실B">
+                        <div class="zone-living-b-text"><span class="zone-name">거실 B</span></div>
+                        <div class="door-main-b"></div>
+                    </div>
+                    <div class="zone-room-b" id="zone-방B">
+                        <span class="zone-name">방 B</span>
+                    </div>
+                    <div class="wall-horizontal-b"></div>
+                    <div class="wall-vertical-b"></div>
+                </div>
+
+                <p class="modal-status-text" id="modal-status-text">대기 중...</p>
+            </div>
+
+            <div class="monitoring-panel">
+                <h3 id="modal-monitoring-title" style="margin-top:0; color: #ffcc00; border-bottom: 1px dashed #555; padding-bottom: 10px;">
+                    감지점을 선택해주세요
+                </h3>
+                <div class="sensor-grid">
+                    <div class="sensor-card full-width priority-card">
+                        <span class="sensor-label">구조 우선순위</span>
+                        <span class="sensor-value priority-value priority-muted" id="metric-priority">대상 없음</span>
+                    </div>
+                    <div class="sensor-card full-width">
+                        <span class="sensor-label">감지 상태</span>
+                        <span class="sensor-value" id="metric-status">신호 없음</span>
+                    </div>
+                    <div class="sensor-card">
+                        <span class="sensor-label">AI 감지 대상</span>
+                        <span class="sensor-value ai-pending" id="metric-ai-target">분석 대기</span>
+                    </div>
+                    <div class="sensor-card">
+                        <span class="sensor-label">AI 신뢰도</span>
+                        <span class="sensor-value" id="metric-ai-confidence">-</span>
+                    </div>
+                    <div class="sensor-card full-width">
+                        <span class="sensor-label">호흡 모션 상태</span>
+                        <span class="sensor-value" id="metric-breathing">-</span>
+                    </div>
+                    <div class="sensor-card full-width">
+                        <span class="sensor-label">마지막 수신</span>
+                        <span class="sensor-value" id="metric-time" style="font-size:14px;">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const mapDiv = document.getElementById('building-map');
+        const logList = document.getElementById('log-list');
+        const logStatus = document.getElementById('log-status');
+        const connectBtn = document.getElementById('connect-btn');
+        const connectionState = document.getElementById('connection-state');
+        const ipInput = document.getElementById('ip-input');
+
+        // 실제 센서 방향과 최대 표시 거리를 측정한 뒤 조정하세요.
+        const SENSOR_LAYOUT = {
+            401: { containerId: 'fp-401', angleDeg: 90, maxRangeM: 6 },
+            402: { containerId: 'fp-402', angleDeg: 90, maxRangeM: 6 },
+            default: { containerId: 'fp-default', angleDeg: 90, maxRangeM: 6 }
+        };
+        const POSITION_RENDER_INTERVAL_MS = 500;
+        const POSITION_SMOOTHING_ALPHA = 0.35;
+        const AUTO_RECONNECT_DELAY_MS = 2000;
+
+        let allLogs = [];
+        let selectedRoom = null;
+        let selectedReadingKey = null;
+        let zoneReadings = {};
+        let positionRenderStates = {};
+        let ws = null;
+        let reconnectTimer = null;
+        let lastServerAddress = '';
+
+        function normalizeLocation(location) {
+            return String(location || '위치미지정').replace(/\s+/g, '');
+        }
+
+        function readingKey(reading) {
+            return `${Number.parseInt(reading.room, 10)}:${normalizeLocation(reading.location)}`;
+        }
+
+        function readingsForRoom(roomNum) {
+            return Object.values(zoneReadings).filter(
+                reading => Number.parseInt(reading.room, 10) === roomNum
+            );
+        }
+
+        function rescuePriorityLevel(reading) {
+            const priority = reading?.rescue_priority ?? reading?.priority;
+            return typeof priority === 'object'
+                ? String(priority?.level || '').toLowerCase()
+                : String(priority || '').toLowerCase();
+        }
+
+        function detectedTarget(reading) {
+            const priority = reading?.rescue_priority ?? reading?.priority;
+            const priorityTarget = typeof priority === 'object'
+                ? String(priority?.target_type || '').toLowerCase()
+                : '';
+            return String(reading?.ai?.target || priorityTarget || '').toLowerCase();
+        }
+
+        function isVisibleDetection(reading) {
+            const level = rescuePriorityLevel(reading);
+            if (['danger', 'critical', 'normal', 'low'].includes(level)) return true;
+            return reading?.status === true && detectedTarget(reading) !== 'empty';
+        }
+
+        for (let floor = 4; floor >= 1; floor--) {
+            const floorDiv = document.createElement('div');
+            floorDiv.className = 'floor';
+            const floorLabel = document.createElement('div');
+            floorLabel.className = 'floor-label';
+            floorLabel.textContent = `${floor}F`;
+            floorDiv.appendChild(floorLabel);
+
+            const rooms = floor === 4 ? [401, 402] : [floor * 100 + 1, floor * 100 + 2, floor * 100 + 3];
+            rooms.forEach(roomNum => {
+                const roomDiv = document.createElement('div');
+                roomDiv.className = 'room';
+                roomDiv.id = `room-${roomNum}`;
+
+                const title = document.createElement('div');
+                title.textContent = `${roomNum}호`;
+                const status = document.createElement('div');
+                status.id = `status-${roomNum}`;
+                status.style.cssText = 'font-size:12px; margin-top:5px; font-weight:normal; color:#555;';
+                status.textContent = '신호 없음';
+                roomDiv.append(title, status);
+                roomDiv.onclick = () => toggleRoomSelection(roomNum);
+                floorDiv.appendChild(roomDiv);
+            });
+            mapDiv.appendChild(floorDiv);
+        }
+
+        function websocketUrl(value) {
+            if (/^wss?:\/\//i.test(value)) return value;
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            return `${protocol}://${value.includes(':') ? value : `${value}:8881`}/`;
+        }
+
+        function setConnectionStatus(state, text) {
+            connectionState.className = `connection-state ${state}`;
+            connectionState.textContent = text;
+        }
+
+        function connectWebSocket(automatic = false) {
+            const address = ipInput.value.trim() || window.location.host;
+            if (!address) {
+                if (!automatic) alert('중계 서버 IP 주소를 입력해주세요.');
+                return;
+            }
+
+            lastServerAddress = address;
+            if (reconnectTimer !== null) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            if (ws) ws.close();
+            const socket = new WebSocket(websocketUrl(address));
+            ws = socket;
+            setConnectionStatus('connecting', '연결 중');
+            connectBtn.textContent = '연결 중...';
+            connectBtn.style.backgroundColor = '#ff9900';
+            addLog(0, `${websocketUrl(address)} 연결 시도 중...`);
+
+            socket.onopen = () => {
+                if (ws !== socket) return;
+                socket.send(JSON.stringify({ type: 'subscribe', role: 'dashboard' }));
+                setConnectionStatus('online', '실시간 연결');
+                connectBtn.textContent = '연결됨';
+                connectBtn.style.backgroundColor = '#00cc66';
+                addLog(0, '중계 서버 연결 성공. 실시간 관제를 시작합니다.');
+            };
+
+            socket.onmessage = event => {
+                try {
+                    const data = JSON.parse(event.data.trim());
+                    if (data.type === 'radar_data' && data.room !== undefined) {
+                        updateRoom(data);
+                    }
+                } catch (error) {
+                    console.error('수신 처리 오류:', error);
+                    addLog(0, '수신 데이터를 해석하지 못했습니다.', true);
+                }
+            };
+
+            socket.onerror = error => {
+                console.error('웹소켓 오류:', error);
+            };
+
+            socket.onclose = event => {
+                if (ws !== socket) return;
+                setConnectionStatus('', '연결 안 됨');
+                connectBtn.textContent = '다시 접속';
+                connectBtn.style.backgroundColor = '#ffcc00';
+                addLog(0, `중계 서버 연결 종료 (코드 ${event.code})`, true);
+                if (lastServerAddress) {
+                    setConnectionStatus('connecting', '재연결 대기');
+                    reconnectTimer = setTimeout(() => {
+                        reconnectTimer = null;
+                        if (ws === socket) connectWebSocket(true);
+                    }, AUTO_RECONNECT_DELAY_MS);
+                }
+            };
+        }
+
+        function updateRoom(data) {
+            const roomNum = Number.parseInt(data.room, 10);
+            const roomDiv = document.getElementById(`room-${roomNum}`);
+            const statusDiv = document.getElementById(`status-${roomNum}`);
+            if (!roomDiv || !statusDiv) return;
+
+            const key = readingKey(data);
+            const previous = zoneReadings[key];
+            const status = data.status === true;
+            zoneReadings[key] = { ...data, status, reading_key: key };
+            updateRoomSummary(roomNum);
+
+            if (!previous || previous.status !== status) {
+                const message = status
+                    ? `🚨 [${data.location || '위치 미지정'}] 감지 · ${formatDistance(data.distance_mm)}`
+                    : `[${data.location || '위치 미지정'}] 센서 감지 해제`;
+                addLog(roomNum, message, status, 'status');
+            }
+
+            if (selectedRoom === roomNum) {
+                scheduleRoomMarkers(roomNum);
+                if (selectedReadingKey === key) renderSelectedSurvivor();
+            }
+        }
+
+        function updateRoomSummary(roomNum) {
+            const roomDiv = document.getElementById(`room-${roomNum}`);
+            const statusDiv = document.getElementById(`status-${roomNum}`);
+            if (!roomDiv || !statusDiv) return;
+
+            const readings = readingsForRoom(roomNum);
+            const activeLocations = [...new Set(
+                readings
+                    .filter(isVisibleDetection)
+                    .map(reading => normalizeLocation(reading.location))
+            )];
+            const hasDetection = activeLocations.length > 0;
+            roomDiv.classList.toggle('alert', hasDetection);
+            statusDiv.textContent = hasDetection
+                ? activeLocations.map(location => `${location} 감지`).join(' · ')
+                : '신호 없음';
+            statusDiv.style.color = hasDetection ? '#ff0000' : '#555';
+            statusDiv.style.fontWeight = hasDetection ? 'bold' : 'normal';
+        }
+
+        function formatValue(value) {
+            return Number.isFinite(value) ? value.toLocaleString('ko-KR') : '-';
+        }
+
+        function formatDistance(distanceMm) {
+            return Number.isFinite(distanceMm) ? `${(distanceMm / 1000).toFixed(2)} m` : '거리 미측정';
+        }
+
+        function formatAiTarget(target) {
+            if (target === 'human') return '사람';
+            if (target === 'dog') return '개';
+            if (target === 'empty') return '감지 대상 없음';
+            if (target === 'pet') return '반려동물';
+            return '분석 중';
+        }
+
+        function formatConfidence(confidence) {
+            return Number.isFinite(confidence)
+                ? `${(confidence * 100).toFixed(1)}%`
+                : '-';
+        }
+
+        function formatAiPending(ai) {
+            if (!ai) return 'AI 데이터 없음';
+            if (ai.reason === 'model_not_loaded') return 'AI 모델 없음';
+            if (ai.reason === 'no_target') return '감지 대상 없음';
+            if (ai.reason === 'collecting_window') {
+                return `데이터 수집 중 (${ai.samples_collected ?? 0}/${ai.samples_required ?? '-'})`;
+            }
+            return '분석 대기';
+        }
+
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return '-';
+            const date = new Date(timestamp);
+            return Number.isNaN(date.getTime()) ? timestamp : date.toLocaleString('ko-KR');
+        }
+
+        function toggleRoomSelection(roomNum) {
+            const previousSelectedRoom = selectedRoom;
+            if (selectedRoom !== null) {
+                document.getElementById(`room-${selectedRoom}`).classList.remove('selected');
+            }
+
+            if (selectedRoom === roomNum) {
+                selectedRoom = null;
+                selectedReadingKey = null;
+                logStatus.textContent = '전체 수신 로그 (All)';
+                logStatus.style.color = '#888';
+                document.getElementById('floorplan-modal').style.display = 'none';
+            } else {
+                if (previousSelectedRoom !== null) {
+                    cancelEstimatedPosition(previousSelectedRoom);
+                }
+                selectedRoom = roomNum;
+                document.getElementById(`room-${roomNum}`).classList.add('selected');
+                logStatus.textContent = '전체 수신 로그 (All)';
+                logStatus.style.color = '#888';
+                openModal(roomNum);
+            }
+            renderLogs();
+        }
+
+        function openModal(roomNum) {
+            document.getElementById('modal-title').textContent = `[ ${roomNum}호 내부 평면도 ]`;
+            document.getElementById('fp-default').style.display = roomNum === 401 || roomNum === 402 ? 'none' : 'grid';
+            document.getElementById('fp-401').style.display = roomNum === 401 ? 'block' : 'none';
+            document.getElementById('fp-402').style.display = roomNum === 402 ? 'block' : 'none';
+            document.getElementById('floorplan-modal').style.display = 'flex';
+            selectedReadingKey = null;
+            renderSelectedSurvivor();
+            scheduleRoomMarkers(roomNum);
+        }
+
+        function selectSurvivor(key) {
+            if (!zoneReadings[key]) return;
+            selectedReadingKey = key;
+            renderSelectedSurvivor();
+            scheduleRoomMarkers(selectedRoom);
+        }
+
+        function renderSelectedSurvivor() {
+            const reading = selectedReadingKey ? zoneReadings[selectedReadingKey] : null;
+            const statusText = document.getElementById('modal-status-text');
+            const metricStatus = document.getElementById('metric-status');
+            const metricPriority = document.getElementById('metric-priority');
+            const monitoringTitle = document.getElementById('modal-monitoring-title');
+
+            if (!reading) {
+                monitoringTitle.textContent = selectedRoom === null
+                    ? '감지점을 선택해주세요'
+                    : `[ ${selectedRoom}호 ] 감지점을 선택해주세요`;
+                metricStatus.textContent = '선택된 생존자 없음';
+                metricStatus.classList.remove('active');
+                metricPriority.textContent = '대상 선택 대기';
+                metricPriority.className = 'sensor-value priority-value priority-muted';
+                const aiTarget = document.getElementById('metric-ai-target');
+                aiTarget.textContent = '분석 대기';
+                aiTarget.className = 'sensor-value ai-pending';
+                document.getElementById('metric-ai-confidence').textContent = '-';
+                document.getElementById('metric-breathing').textContent = '-';
+                document.getElementById('metric-time').textContent = '-';
+                statusText.textContent = readingsForRoom(selectedRoom).some(isVisibleDetection)
+                    ? '평면도의 빨간 감지점을 클릭하면 생존자 정보가 표시됩니다.'
+                    : '아직 감지된 생존자 정보가 없습니다.';
+                statusText.style.color = '#888';
+                return;
+            }
+
+            monitoringTitle.textContent = `[ ${reading.room}호 · ${reading.location || '위치 미지정'} ] 생존자 정보`;
+
+            const survivorState = reading.survivor_state || {};
+            const priorityLevel = rescuePriorityLevel(reading);
+            if (reading.status) metricStatus.textContent = '감지 중';
+            else if (['danger', 'critical'].includes(priorityLevel)) metricStatus.textContent = '미세 움직임 미감지';
+            else metricStatus.textContent = '신호 없음';
+            metricStatus.classList.toggle('active', isVisibleDetection(reading));
+            document.getElementById('metric-time').textContent = formatTimestamp(
+                reading.timestamp || survivorState.updated_at
+            );
+
+            const ai = reading.ai;
+            const priority = formatRescuePriority(reading);
+            metricPriority.textContent = priority.text;
+            metricPriority.classList.remove(
+                'priority-critical',
+                'priority-normal',
+                'priority-pet',
+                'priority-muted'
+            );
+            if (priority.className) metricPriority.classList.add(priority.className);
+
+            const aiTarget = document.getElementById('metric-ai-target');
+            const aiConfidence = document.getElementById('metric-ai-confidence');
+            aiTarget.classList.remove('ai-human', 'ai-pet', 'ai-dog', 'ai-empty', 'ai-pending');
+            if (ai?.ready) {
+                aiTarget.textContent = formatAiTarget(ai.target);
+                if (ai.target === 'human') aiTarget.classList.add('ai-human');
+                else if (ai.target === 'empty') aiTarget.classList.add('ai-empty');
+                else aiTarget.classList.add(ai.target === 'dog' ? 'ai-dog' : 'ai-pet');
+                aiConfidence.textContent = formatConfidence(ai.confidence);
+            } else {
+                aiTarget.textContent = formatAiPending(ai);
+                aiTarget.classList.add('ai-pending');
+                aiConfidence.textContent = '-';
+            }
+
+            const breathingMetric = document.getElementById('metric-breathing');
+            if (survivorState.human_recent) {
+                if (survivorState.motion_active) {
+                    breathingMetric.textContent = `호흡 모션 감지 · ${Number(survivorState.motion_duration_sec || 0).toFixed(1)}초`;
+                } else {
+                    breathingMetric.textContent = `미세 움직임 없음 · ${Number(survivorState.no_motion_duration_sec || 0).toFixed(1)}초`;
+                }
+            } else {
+                breathingMetric.textContent = '-';
+            }
+
+            if (reading.status) {
+                statusText.textContent = `🚨 [${reading.location || '위치 미지정'}] 구역에서 신호 감지 중`;
+                statusText.style.color = '#ff5252';
+            } else {
+                statusText.textContent = ['danger', 'critical'].includes(priorityLevel)
+                    ? `[${reading.location || '위치 미지정'}] 생존자의 미세 움직임이 감지되지 않습니다.`
+                    : '현재 감지된 신호가 없습니다.';
+                statusText.style.color = '#888';
+            }
+        }
+
+        function formatRescuePriority(reading) {
+            if (!reading) {
+                return { text: '센서 데이터 대기', className: 'priority-muted' };
+            }
+            const rawPriority =
+                reading.rescue_priority ?? reading.priority ?? reading.ai?.rescue_priority;
+            if (rawPriority !== undefined && rawPriority !== null && rawPriority !== '') {
+                const value = typeof rawPriority === 'object'
+                    ? rawPriority.label_ko ?? rawPriority.label ?? rawPriority.level ?? rawPriority.value
+                    : rawPriority;
+                const text = String(value ?? '우선순위 산정 완료');
+                const level = typeof rawPriority === 'object'
+                    ? String(rawPriority.level ?? '').toLowerCase()
+                    : String(rawPriority).toLowerCase();
+                const classByLevel = {
+                    danger: 'priority-critical',
+                    critical: 'priority-critical',
+                    normal: 'priority-normal',
+                    low: 'priority-pet',
+                    none: 'priority-muted',
+                    pending: 'priority-muted'
+                };
+                return {
+                    text,
+                    className: classByLevel[level] || ''
+                };
+            }
+
+            if (!reading.status) {
+                return { text: '대상 없음', className: 'priority-muted' };
+            }
+
+            const ai = reading.ai;
+            if (!ai?.ready) {
+                return { text: 'AI 분석 대기', className: 'priority-muted' };
+            }
+            if (ai.target === 'dog' || ai.target === 'pet') {
+                return { text: '낮음 · 반려동물', className: 'priority-pet' };
+            }
+            if (ai.target === 'empty') {
+                return { text: '구조 대상 없음', className: 'priority-muted' };
+            }
+            if (ai.target === 'human') {
+                return { text: '보통 · 사람', className: 'priority-normal' };
+            }
+            return { text: 'AI 판정 대기', className: 'priority-muted' };
+        }
+
+        function scheduleRoomMarkers(roomNum) {
+            if (roomNum === null || roomNum === undefined) return;
+            const state = positionRenderStates[roomNum] || {
+                lastRenderedAt: 0,
+                timer: null,
+                smoothedDistances: {}
+            };
+            positionRenderStates[roomNum] = state;
+
+            const elapsed = performance.now() - state.lastRenderedAt;
+            if (elapsed >= POSITION_RENDER_INTERVAL_MS && state.timer === null) {
+                renderRoomMarkers(roomNum);
+                return;
+            }
+            if (state.timer === null) {
+                state.timer = window.setTimeout(
+                    () => renderRoomMarkers(roomNum),
+                    Math.max(0, POSITION_RENDER_INTERVAL_MS - elapsed)
+                );
+            }
+        }
+
+        function readingDistanceM(reading) {
+            if (Number.isFinite(reading?.distance_m)) return reading.distance_m;
+            if (Number.isFinite(reading?.distance_mm)) return reading.distance_mm / 1000;
+            return null;
+        }
+
+        function renderRoomMarkers(roomNum) {
+            const state = positionRenderStates[roomNum] || {
+                lastRenderedAt: 0,
+                timer: null,
+                smoothedDistances: {}
+            };
+            state.timer = null;
+            state.lastRenderedAt = performance.now();
+            positionRenderStates[roomNum] = state;
+
+            if (selectedRoom !== roomNum) return;
+            const layout = SENSOR_LAYOUT[roomNum] || SENSOR_LAYOUT.default;
+            const container = document.getElementById(layout.containerId);
+            if (!container || container.offsetWidth === 0) return;
+
+            const readings = readingsForRoom(roomNum);
+            const visibleKeys = new Set();
+            container.querySelectorAll('.zone-name.sensor-installed')
+                .forEach(element => element.classList.remove('sensor-installed'));
+
+            readings.forEach(reading => {
+                const key = reading.reading_key || readingKey(reading);
+                const zone = document.getElementById(`zone-${normalizeLocation(reading.location)}`);
+                zone?.querySelector('.zone-name')?.classList.add('sensor-installed');
+                if (!isVisibleDetection(reading)) return;
+
+                visibleKeys.add(key);
+                const rawDistance = readingDistanceM(reading);
+                let displayReading = reading;
+                if (rawDistance !== null) {
+                    const previousDistance = state.smoothedDistances[key];
+                    const smoothedDistance = Number.isFinite(previousDistance)
+                        ? previousDistance + POSITION_SMOOTHING_ALPHA * (rawDistance - previousDistance)
+                        : rawDistance;
+                    state.smoothedDistances[key] = smoothedDistance;
+                    displayReading = {
+                        ...reading,
+                        distance_m: smoothedDistance,
+                        distance_mm: smoothedDistance * 1000
+                    };
+                }
+                renderZoneMarker(container, layout, displayReading, key);
+            });
+
+            container.querySelectorAll('.red-dot[data-reading-key]')
+                .forEach(dot => {
+                    if (visibleKeys.has(dot.dataset.readingKey)) return;
+                    const label = dot.nextElementSibling;
+                    if (label?.classList.contains('position-label')) label.remove();
+                    dot.remove();
+                });
+        }
+
+        function cancelEstimatedPosition(roomNum) {
+            const state = positionRenderStates[roomNum];
+            if (state?.timer !== null) window.clearTimeout(state.timer);
+            delete positionRenderStates[roomNum];
+        }
+
+        function clearPositionMarkers() {
+            document.querySelectorAll('.red-dot, .position-label')
+                .forEach(element => element.remove());
+            document.querySelectorAll('.zone-name.sensor-installed')
+                .forEach(element => element.classList.remove('sensor-installed'));
+        }
+
+        function findMarker(container, key) {
+            return Array.from(container.querySelectorAll('.red-dot[data-reading-key]'))
+                .find(dot => dot.dataset.readingKey === key) || null;
+        }
+
+        function renderZoneMarker(container, layout, reading, key) {
+            const sensorZone = document.getElementById(`zone-${normalizeLocation(reading.location)}`);
+            const sensorLabel = sensorZone?.querySelector('.zone-name');
+            if (!sensorLabel) return;
+            sensorLabel.classList.add('sensor-installed');
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const containerRect = container.getBoundingClientRect();
+            const labelRect = sensorLabel.getBoundingClientRect();
+            const originX = labelRect.left - containerRect.left + labelRect.width / 2;
+            const originY = labelRect.top - containerRect.top + labelRect.height / 2;
+            const angle = layout.angleDeg * Math.PI / 180;
+            const directionX = Math.cos(angle);
+            const directionY = Math.sin(angle);
+            const xLimit = directionX > 0 ? (width - originX) / directionX : directionX < 0 ? -originX / directionX : Infinity;
+            const yLimit = directionY > 0 ? (height - originY) / directionY : directionY < 0 ? -originY / directionY : Infinity;
+            const rayLength = Math.min(xLimit, yLimit) * 0.92;
+
+            let dot = findMarker(container, key);
+            let label = dot?.nextElementSibling?.classList.contains('position-label')
+                ? dot.nextElementSibling
+                : null;
+            const distanceM = readingDistanceM(reading);
+            const ratio = distanceM === null
+                ? Math.min(44 / Math.max(rayLength, 1), 0.18)
+                : Math.min(Math.max(distanceM / layout.maxRangeM, 0.04), 1);
+            const targetX = originX + directionX * rayLength * ratio;
+            const targetY = originY + directionY * rayLength * ratio;
+
+            if (!dot) {
+                dot = document.createElement('div');
+                dot.className = 'red-dot';
+                dot.tabIndex = 0;
+                dot.dataset.readingKey = key;
+                dot.addEventListener('click', event => {
+                    event.stopPropagation();
+                    selectSurvivor(dot.dataset.readingKey);
+                });
+                dot.addEventListener('keydown', event => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    selectSurvivor(dot.dataset.readingKey);
+                });
+                container.append(dot);
+            }
+            dot.classList.toggle('selected-survivor', selectedReadingKey === key);
+            dot.style.left = `${targetX}px`;
+            dot.style.top = `${targetY}px`;
+            dot.setAttribute(
+                'aria-label',
+                `${reading.location || '위치 미지정'} 감지 대상 정보 보기`
+            );
+            if (!label) {
+                label = document.createElement('div');
+                label.className = 'position-label';
+                dot.after(label);
+            } else if (dot.nextElementSibling !== label) {
+                dot.after(label);
+            }
+            label.style.left = `${targetX}px`;
+            label.style.top = `${targetY}px`;
+            const distanceText = distanceM === null ? '거리 미측정' : `${distanceM.toFixed(2)} m`;
+            label.textContent = `${reading.location || '위치 미지정'} · ${distanceText} · ${formatRescuePriority(reading).text}`;
+        }
+
+        function closeModal() {
+            document.getElementById('floorplan-modal').style.display = 'none';
+            clearPositionMarkers();
+            if (selectedRoom !== null) {
+                cancelEstimatedPosition(selectedRoom);
+                document.getElementById(`room-${selectedRoom}`).classList.remove('selected');
+                selectedRoom = null;
+                selectedReadingKey = null;
+                logStatus.textContent = '전체 수신 로그 (All)';
+                logStatus.style.color = '#888';
+                renderLogs();
+            }
+        }
+
+        function addLog(roomNum, message, isAlert = false, category = null) {
+            allLogs.unshift({
+                time: new Date().toLocaleTimeString('ko-KR'),
+                room: roomNum,
+                message,
+                isAlert,
+                category: category || (roomNum === 0 ? 'system' : 'status')
+            });
+            if (allLogs.length > 1000) allLogs.pop();
+            renderLogs();
+        }
+
+        function makeLogEntry(log) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = document.createElement('span');
+            time.className = 'log-time';
+            time.textContent = `[${log.time}]`;
+            const badge = document.createElement('span');
+            badge.className = `log-badge ${log.category}`;
+            badge.textContent = {
+                system: '시스템',
+                status: '감지'
+            }[log.category] || '정보';
+            const message = document.createElement('span');
+            message.className = 'log-message';
+            if (log.isAlert) message.classList.add('log-alert');
+            message.textContent = ` ${log.room === 0 ? '[시스템]' : `[${log.room}호]`} ${log.message}`;
+            entry.append(time, badge, message);
+            return entry;
+        }
+
+        function renderLogs() {
+            logList.replaceChildren();
+            allLogs.forEach(log => {
+                logList.appendChild(makeLogEntry(log));
+            });
+        }
+
+        window.addEventListener('resize', () => {
+            if (selectedRoom !== null) scheduleRoomMarkers(selectedRoom);
+        });
+
+        if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+            ipInput.value = window.location.host;
+            addLog(0, '현재 Raspberry Pi 서버에 자동 연결합니다.');
+            connectWebSocket(true);
+        } else {
+            addLog(0, '중계 서버 주소를 입력한 뒤 망 접속 버튼을 눌러주세요.');
+        }
+    </script>
+</body>
+</html>
