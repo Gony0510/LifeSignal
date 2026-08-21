@@ -775,9 +775,19 @@
         }
 
         function isVisibleDetection(reading) {
-            const level = rescuePriorityLevel(reading);
-            if (['danger', 'critical', 'normal', 'low'].includes(level)) return true;
-            return reading?.status === true && detectedTarget(reading) !== 'empty';
+            if (!reading) return false;
+            // 시연 규칙이 적용되지 않은 C4001은 원시 감지 상태를 유지합니다.
+            if (isAiDisabled(reading)) return reading.status === true;
+            // V-PR100은 원시 status가 True여도 AI가 빈 공간으로 판정하면
+            // 생존자 감지로 표시하지 않습니다.
+            if (reading.ai?.ready !== true) return false;
+            return ['human', 'dog', 'pet'].includes(detectedTarget(reading));
+        }
+
+        function detectionLogState(reading) {
+            if (!isVisibleDetection(reading)) return 'none';
+            if (isAiDisabled(reading)) return 'sensor';
+            return detectedTarget(reading) || 'sensor';
         }
 
         for (let floor = 4; floor >= 1; floor--) {
@@ -888,14 +898,20 @@
             const key = readingKey(data);
             const previous = zoneReadings[key];
             const status = data.status === true;
-            zoneReadings[key] = { ...data, status, reading_key: key };
+            const current = { ...data, status, reading_key: key };
+            zoneReadings[key] = current;
             updateRoomSummary(roomNum);
 
-            if (!previous || previous.status !== status) {
-                const message = status
-                    ? `🚨 [${data.location || '위치 미지정'}] 감지 · ${formatDistance(data.distance_mm)}`
+            const previousLogState = previous ? detectionLogState(previous) : 'none';
+            const currentLogState = detectionLogState(current);
+            if (previousLogState !== currentLogState) {
+                const targetText = currentLogState === 'sensor'
+                    ? ''
+                    : ` · ${formatAiTarget(currentLogState)}`;
+                const message = currentLogState !== 'none'
+                    ? `🚨 [${data.location || '위치 미지정'}] 감지${targetText} · ${formatDistance(data.distance_mm)}`
                     : `[${data.location || '위치 미지정'}] 센서 감지 해제`;
-                addLog(roomNum, message, status, 'status');
+                addLog(roomNum, message, currentLogState !== 'none', 'status');
             }
 
             if (selectedRoom === roomNum) {
@@ -966,7 +982,11 @@
         function isAiDisabled(reading) {
             if (!reading) return false;
             if (reading.ai?.disabled === true) return true;
-            return String(reading.sensor || '').trim().toLowerCase().includes('c4001');
+            const isC4001 = String(reading.sensor || '')
+                .trim()
+                .toLowerCase()
+                .includes('c4001');
+            return isC4001 && reading.ai?.simulated !== true;
         }
 
         function toggleRoomSelection(roomNum) {
@@ -1047,10 +1067,11 @@
 
             const survivorState = reading.survivor_state || {};
             const priorityLevel = rescuePriorityLevel(reading);
-            if (reading.status) metricStatus.textContent = '감지 중';
+            const visibleDetection = isVisibleDetection(reading);
+            if (visibleDetection) metricStatus.textContent = '감지 중';
             else if (['danger', 'critical'].includes(priorityLevel)) metricStatus.textContent = '미세 움직임 미감지';
             else metricStatus.textContent = '신호 없음';
-            metricStatus.classList.toggle('active', isVisibleDetection(reading));
+            metricStatus.classList.toggle('active', visibleDetection);
             document.getElementById('metric-time').textContent = formatTimestamp(
                 reading.timestamp || survivorState.updated_at
             );
@@ -1086,17 +1107,15 @@
             }
 
             const breathingMetric = document.getElementById('metric-breathing');
-            if (survivorState.human_recent) {
-                if (survivorState.motion_active) {
-                    breathingMetric.textContent = `호흡 모션 감지 · ${Number(survivorState.motion_duration_sec || 0).toFixed(1)}초`;
-                } else {
-                    breathingMetric.textContent = `미세 움직임 없음 · ${Number(survivorState.no_motion_duration_sec || 0).toFixed(1)}초`;
-                }
+            if (visibleDetection && survivorState.motion_active) {
+                breathingMetric.textContent = `호흡 모션 감지 · ${Number(survivorState.motion_duration_sec || 0).toFixed(1)}초`;
+            } else if (survivorState.human_recent) {
+                breathingMetric.textContent = `미세 움직임 없음 · ${Number(survivorState.no_motion_duration_sec || 0).toFixed(1)}초`;
             } else {
                 breathingMetric.textContent = '-';
             }
 
-            if (reading.status) {
+            if (visibleDetection) {
                 statusText.textContent = `🚨 [${reading.location || '위치 미지정'}] 구역에서 신호 감지 중`;
                 statusText.style.color = '#ff5252';
             } else {

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
+from datetime import datetime, timezone
 from pathlib import Path
 from time import monotonic
 
@@ -19,6 +21,7 @@ ai_engine = SensorAIEngine(None, update_interval=5.0)
 sensor_ai_engines: dict[str, SensorAIEngine] = {}
 survivor_state_tracker = SurvivorStateTracker()
 DETECTION_HOLD_SECONDS = 1.0
+C4001_DEMO_UPDATE_INTERVAL_SECONDS = 5.0
 HTML_PATH = Path(__file__).with_name("LifeSignal.html")
 ARTIFACT_DIR = Path(__file__).with_name("AI") / "artifacts"
 DEFAULT_MODEL_CANDIDATES = {
@@ -27,6 +30,132 @@ DEFAULT_MODEL_CANDIDATES = {
         ARTIFACT_DIR / "vpr100-cnn.keras",
     ),
 }
+C4001_DEMO_RULES = {
+    (402, "거실B"): {
+        "target": "human",
+        "target_ko": "사람",
+        "confidence_min": 830,
+        "confidence_max": 980,
+    },
+    (402, "방B"): {
+        "target": "dog",
+        "target_ko": "개",
+        "confidence_min": 900,
+        "confidence_max": 980,
+    },
+}
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def normalize_location(value: object) -> str:
+    return "".join(str(value or "").split())
+
+
+def c4001_demo_rule(data: dict) -> dict | None:
+    try:
+        room = int(data.get("room"))
+    except (TypeError, ValueError):
+        return None
+    return C4001_DEMO_RULES.get(
+        (room, normalize_location(data.get("location")))
+    )
+
+
+class C4001DemoEngine:
+    """402호 C4001 두 위치에만 적용하는 시연용 고정 분류기입니다."""
+
+    def __init__(
+        self,
+        *,
+        update_interval: float = C4001_DEMO_UPDATE_INTERVAL_SECONDS,
+    ) -> None:
+        if update_interval <= 0:
+            raise ValueError("C4001 시연 결과 갱신 주기는 0보다 커야 합니다.")
+        self.update_interval = update_interval
+        self.latest_results: dict[str, dict] = {}
+        self.last_updated_at: dict[str, float] = {}
+
+    @staticmethod
+    def sensor_key(data: dict) -> str:
+        return (
+            f"{data.get('sensor', 'C4001')}:"
+            f"{data.get('room')}:"
+            f"{normalize_location(data.get('location'))}"
+        )
+
+    @staticmethod
+    def _disabled_result() -> dict:
+        return {
+            "ready": False,
+            "disabled": True,
+            "target": None,
+            "target_ko": None,
+            "confidence": None,
+        }
+
+    def enrich(self, data: dict, *, now: float | None = None) -> dict:
+        enriched = dict(data)
+        rule = c4001_demo_rule(data)
+        if rule is None:
+            enriched["ai"] = self._disabled_result()
+            return enriched
+
+        current_time = monotonic() if now is None else now
+        key = self.sensor_key(data)
+        if data.get("status") is not True:
+            self.latest_results.pop(key, None)
+            self.last_updated_at.pop(key, None)
+            enriched["ai"] = {
+                "ready": True,
+                "simulated": True,
+                "model": "rule_based_demo",
+                "target": "empty",
+                "target_ko": "감지 대상 없음",
+                "confidence": None,
+                "update_interval_sec": self.update_interval,
+                "updated_at": _utc_now(),
+            }
+            return enriched
+
+        result = self.latest_results.get(key)
+        last_updated = self.last_updated_at.get(key)
+        if result is None:
+            confidence = random.randint(
+                int(rule["confidence_min"]),
+                int(rule["confidence_max"]),
+            ) / 1000.0
+            result = {
+                "ready": True,
+                "simulated": True,
+                "model": "rule_based_demo",
+                "target": rule["target"],
+                "target_ko": rule["target_ko"],
+                "confidence": confidence,
+                "update_interval_sec": self.update_interval,
+                "updated_at": _utc_now(),
+            }
+            self.latest_results[key] = result
+            self.last_updated_at[key] = current_time
+        elif (
+            last_updated is None
+            or current_time - last_updated >= self.update_interval
+        ):
+            result = {**result, "updated_at": _utc_now()}
+            self.latest_results[key] = result
+            self.last_updated_at[key] = current_time
+
+        enriched["ai"] = dict(result)
+        return enriched
+
+    def clear(self) -> None:
+        self.latest_results.clear()
+        self.last_updated_at.clear()
+
+
+c4001_demo_engine = C4001DemoEngine()
 
 
 def sensor_key(data: dict) -> str | None:
@@ -125,18 +254,14 @@ def process_message(message: str) -> tuple[str, str | None]:
     engine = select_ai_engine(stabilized)
 
     if family == "c4001":
-        # C4001은 당분간 원시 센서 상태만 전달합니다.
-        # 나중에 이 빈 슬롯에 시연용 규칙 기반 결과를 연결할 수 있습니다.
-        enriched = dict(stabilized)
-        enriched["ai"] = {
-            "ready": False,
-            "disabled": True,
-            "target": None,
-            "target_ko": None,
-            "confidence": None,
-        }
+        enriched = c4001_demo_engine.enrich(stabilized)
         enriched = survivor_state_tracker.enrich(enriched)
-        enriched.pop("rescue_priority", None)
+        ai_data = enriched.get("ai")
+        if isinstance(ai_data, dict) and not ai_data.get("disabled"):
+            # C4001 시연 분류는 위치별 고정 우선순위만 사용합니다.
+            enriched["rescue_priority"] = build_rescue_priority(ai_data)
+        else:
+            enriched.pop("rescue_priority", None)
     else:
         if engine is None:
             engine = ai_engine
@@ -191,10 +316,25 @@ def print_sensor_summary(message: str) -> None:
         return
 
     if sensor_family(data) == "c4001":
+        ai_data = data.get("ai") or {}
+        if ai_data.get("ready") and ai_data.get("target") not in {None, "empty"}:
+            ai_text = (
+                f"{ai_data.get('target_ko')} "
+                f"{float(ai_data.get('confidence', 0)) * 100:.1f}%"
+            )
+        elif ai_data.get("target") == "empty":
+            ai_text = "감지 대상 없음"
+        else:
+            print(
+                "센서 수신: "
+                f"{data.get('room')}호 {data.get('location')} "
+                f"감지={data.get('status')}"
+            )
+            return
         print(
-            "센서 수신: "
+            "센서 수신/시연 처리: "
             f"{data.get('room')}호 {data.get('location')} "
-            f"감지={data.get('status')}"
+            f"감지={data.get('status')} 대상={ai_text}"
         )
         return
 
@@ -311,7 +451,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def configure_ai(args: argparse.Namespace) -> None:
-    global ai_engine, sensor_ai_engines, survivor_state_tracker
+    global ai_engine, c4001_demo_engine, sensor_ai_engines, survivor_state_tracker
     if args.ai_update_interval <= 0:
         raise SystemExit("AI 갱신 주기는 0보다 커야 합니다.")
     human_risk_after = getattr(args, "human_risk_after", 4.0)
@@ -320,6 +460,9 @@ def configure_ai(args: argparse.Namespace) -> None:
 
     survivor_state_tracker = SurvivorStateTracker(
         human_risk_after_sec=human_risk_after,
+    )
+    c4001_demo_engine = C4001DemoEngine(
+        update_interval=args.ai_update_interval,
     )
 
     vpr100_model = getattr(args, "vpr100_model", None)

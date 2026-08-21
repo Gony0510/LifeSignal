@@ -58,5 +58,53 @@
     "output": "/Users/gony0510/LifeSignal/AI/data/vpr100_samples.csv",
     "expected_room": 401,
     "expected_location": "거실A"
+  },
+  {
+    "completed_at": "2026-08-21T01:18:19.198679+00:00",
+    "preset": "vpr100_empty_vibration_01",
+    "sensor": "vpr100",
+    "session_id": "empty_vibration_01",
+    "label": "empty",
+    "scenario": "empty_vibration",
+    "rows": 300,
+    "output": "/Users/gony0510/LifeSignal/AI/data/vpr100_samples.csv",
+    "expected_room": 401,
+    "expected_location": "거실A"
+  },
+  {
+    "completed_at": "2026-08-21T01:20:54.014425+00:00",
+    "preset": "vpr100_empty_vibration_02",
+    "sensor": "vpr100",
+    "session_id": "empty_vibration_02",
+    "label": "empty",
+    "scenario": "empty_vibration",
+    "rows": 150,
+    "output": "/Users/gony0510/LifeSignal/AI/data/vpr100_samples.csv",
+    "expected_room": 401,
+    "expected_location": "거실A"
+  },
+  {
+    "completed_at": "2026-08-21T01:23:59.364733+00:00",
+    "preset": "vpr100_empty_vibration_02",
+    "sensor": "vpr100",
+    "session_id": "empty_vibration_02",
+    "label": "empty",
+    "scenario": "empty_vibration",
+    "rows": 300,
+    "output": "/Users/gony0510/LifeSignal/AI/data/vpr100_samples.csv",
+    "expected_room": 401,
+    "expected_location": "거실A"
+  },
+  {
+    "completed_at": "2026-08-21T01:27:50.026791+00:00",
+    "preset": "vpr100_dog_02",
+    "sensor": "vpr100",
+    "session_id": "dog_02",
+    "label": "dog",
+    "scenario": "dog",
+    "rows": 300,
+    "output": "/Users/gony0510/LifeSignal/AI/data/vpr100_samples.csv",
+    "expected_room": 401,
+    "expected_location": "거실A"
   }
 ]

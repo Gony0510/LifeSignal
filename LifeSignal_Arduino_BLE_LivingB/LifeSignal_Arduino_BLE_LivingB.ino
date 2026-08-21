@@ -11,11 +11,11 @@
 
 // LifeSignal C4001 + BLE provisioning firmware.
 // The original LifeSignal_Arduino/LifeSignal_Arduino.ino is intentionally kept unchanged.
-// Deployment: 402호 방B
+// Deployment: 402호 거실B
 
 const int ROOM_NUMBER = 402;
 #ifndef LIFESIGNAL_ZONE_LOCATION
-#define LIFESIGNAL_ZONE_LOCATION "방B"
+#define LIFESIGNAL_ZONE_LOCATION "거실B"
 #endif
 const String ZONE_LOCATION = LIFESIGNAL_ZONE_LOCATION;
 const char *SENSOR_NAME = "C4001";
@@ -529,7 +529,7 @@ void sendRadarDataIfDue() {
   jsonPayload += "\"}";
 
   Serial.println("전송 데이터: " + jsonPayload);
-  
+
   if (webSocketConnected) {
     webSocket.sendTXT(jsonPayload);
   }

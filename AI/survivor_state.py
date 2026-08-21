@@ -75,6 +75,11 @@ class SurvivorStateTracker:
         ai = data.get("ai") if isinstance(data.get("ai"), dict) else {}
         target = str(ai.get("target") or "").strip().lower()
         human_now = bool(ai.get("ready")) and target == "human"
+        detected_now = bool(ai.get("ready")) and target in {
+            "human",
+            "dog",
+            "pet",
+        }
 
         if human_now:
             if state.first_human_at is None:
@@ -85,7 +90,9 @@ class SurvivorStateTracker:
             state.last_human_at is not None
             and current_time - state.last_human_at <= self.human_history_sec
         )
-        motion_active = self._motion_active(data) and (human_now or human_recent)
+        motion_active = self._motion_active(data) and (
+            detected_now or human_recent
+        )
 
         if motion_active:
             if state.motion_started_at is None:
