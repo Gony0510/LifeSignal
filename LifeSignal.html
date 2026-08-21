@@ -314,7 +314,7 @@
         .wall-vertical-a {
             position: absolute;
             top: 0;
-            left: 45%;
+            left: 42%;
             width: 6px;
             height: 40%;
             background: #444;
@@ -323,7 +323,7 @@
 
         .zone-living-a { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; }
         .zone-living-a-text { position: absolute; top: 67%; left: 50%; transform: translate(-50%, -50%); color: #888; font-size: 24px; font-weight: bold; }
-        .zone-room-a { position: absolute; top: 0; left: 0; width: 45%; height: 40%; background: transparent; z-index: 16; display: flex; align-items: center; justify-content: center; color: #888; font-size: 24px; font-weight: bold; }
+        .zone-room-a { position: absolute; top: 0; left: 0; width: 42%; height: 40%; background: transparent; z-index: 16; display: flex; align-items: center; justify-content: center; color: #888; font-size: 24px; font-weight: bold; }
 
         .door-main-a {
             position: absolute;
@@ -682,6 +682,13 @@
             402: { containerId: 'fp-402', angleDeg: 90, maxRangeM: 6 },
             default: { containerId: 'fp-default', angleDeg: 90, maxRangeM: 6 }
         };
+        const CLASSIFIED_TARGET_POSITIONS = {
+            401: {
+                dog: { xPercent: 51, yPercent: 21 },
+                pet: { xPercent: 51, yPercent: 21 },
+                human: { xPercent: 90, yPercent: 21 }
+            }
+        };
         const POSITION_RENDER_INTERVAL_MS = 500;
         const POSITION_SMOOTHING_ALPHA = 0.35;
         const AUTO_RECONNECT_DELAY_MS = 2000;
@@ -757,6 +764,14 @@
                 ? String(priority?.target_type || '').toLowerCase()
                 : '';
             return String(reading?.ai?.target || priorityTarget || '').toLowerCase();
+        }
+
+        function classifiedTargetPosition(reading) {
+            if (reading?.ai?.ready !== true) return null;
+            const roomNum = Number.parseInt(reading.room, 10);
+            const positions = CLASSIFIED_TARGET_POSITIONS[roomNum];
+            if (!positions) return null;
+            return positions[detectedTarget(reading)] || null;
         }
 
         function isVisibleDetection(reading) {
@@ -1286,8 +1301,13 @@
             const ratio = distanceM === null
                 ? Math.min(44 / Math.max(rayLength, 1), 0.18)
                 : Math.min(Math.max(distanceM / layout.maxRangeM, 0.04), 1);
-            const targetX = originX + directionX * rayLength * ratio;
-            const targetY = originY + directionY * rayLength * ratio;
+            const classifiedPosition = classifiedTargetPosition(reading);
+            const targetX = classifiedPosition
+                ? width * classifiedPosition.xPercent / 100
+                : originX + directionX * rayLength * ratio;
+            const targetY = classifiedPosition
+                ? height * classifiedPosition.yPercent / 100
+                : originY + directionY * rayLength * ratio;
 
             if (!dot) {
                 dot = document.createElement('div');

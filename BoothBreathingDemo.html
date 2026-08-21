@@ -153,19 +153,20 @@
       }
 
       .image-stage::before {
-        position: absolute;
-        inset: 14px;
-        z-index: 0;
-        border: 1px solid rgba(255, 255, 255, 0.07);
-        border-radius: 18px;
-        content: "";
-        pointer-events: none;
-        animation: stageBreathPulse var(--cycle) infinite cubic-bezier(0.36, 0, 0.22, 1);
-        will-change: border-color, box-shadow;
+        display: none;
       }
 
       .image-stage::after {
-        display: none;
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        border-radius: inherit;
+        background: var(--accent);
+        content: "";
+        opacity: 0;
+        pointer-events: none;
+        animation: stageBackgroundPulse var(--cycle) infinite cubic-bezier(0.36, 0, 0.22, 1);
+        will-change: opacity;
       }
 
       .doll-visual {
@@ -207,21 +208,18 @@
         will-change: transform, filter;
       }
 
-      @keyframes stageBreathPulse {
+      @keyframes stageBackgroundPulse {
         0%,
         100% {
-          border-color: rgba(255, 255, 255, 0.07);
-          box-shadow: none;
+          opacity: 0;
         }
 
         28% {
-          border-color: rgba(255, 151, 144, 0.88);
-          box-shadow: 0 0 0 2px rgba(255, 141, 134, 0.22), 0 0 30px rgba(255, 119, 111, 0.24), inset 0 0 16px rgba(255, 132, 124, 0.06);
+          opacity: 0.88;
         }
 
         50% {
-          border-color: rgba(255, 255, 255, 0.07);
-          box-shadow: none;
+          opacity: 0;
         }
       }
 
@@ -356,7 +354,7 @@
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .image-stage::before,
+        .image-stage::after,
         .doll-image--bulge,
         .guide-rail::after {
           animation-play-state: paused;

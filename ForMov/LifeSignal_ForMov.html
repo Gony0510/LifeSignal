@@ -381,17 +381,21 @@
         }
 
         .red-dot {
-            width: 24px; height: 24px; background-color: #ff0000; border-radius: 50%;
+            --dot-color: #ff0000;
+            width: 24px; height: 24px; background-color: var(--dot-color); border-radius: 50%;
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             animation: pulse-dot 1s infinite alternate;
             transition: left .45s ease-out, top .45s ease-out;
             z-index: 30;
         }
+        .red-dot.priority-critical { --dot-color: #ff0000; }
+        .red-dot.priority-normal { --dot-color: #ff9800; }
+        .red-dot.priority-pet { --dot-color: #4caf50; }
         #zone-거실A .red-dot, #zone-거실B .red-dot { top: 30%; }
 
         @keyframes pulse-dot {
-            from { box-shadow: 0 0 5px #ff0000, 0 0 10px #ff0000; transform: translate(-50%, -50%) scale(1); }
-            to { box-shadow: 0 0 15px #ff0000, 0 0 30px #ff0000; transform: translate(-50%, -50%) scale(1.3); }
+            from { box-shadow: 0 0 5px var(--dot-color), 0 0 10px var(--dot-color); transform: translate(-50%, -50%) scale(1); }
+            to { box-shadow: 0 0 15px var(--dot-color), 0 0 30px var(--dot-color); transform: translate(-50%, -50%) scale(1.3); }
         }
 
         .monitoring-panel {
@@ -413,8 +417,20 @@
         .sensor-card.full-width { grid-column: 1 / -1; }
         .sensor-card.priority-card {
             padding: 18px 16px;
+            background: #1b1b1b;
+            border-color: #555;
+        }
+        .sensor-card.priority-card.priority-card-critical {
+            background: #301416;
+            border-color: #ff5252;
+        }
+        .sensor-card.priority-card.priority-card-normal {
             background: #201d12;
             border-color: #5d4e1b;
+        }
+        .sensor-card.priority-card.priority-card-pet {
+            background: #142817;
+            border-color: #4caf50;
         }
         .sensor-label {
             display: block;
@@ -430,8 +446,47 @@
         .sensor-value.active { color: #ff5252; }
         .priority-value { font-size: 24px; color: #ffcc00; }
         .priority-value.priority-critical { color: #ff5252; }
-        .priority-value.priority-normal { color: #ffcc00; }
+        .priority-value.priority-normal { color: #ff9800; }
+        .priority-value.priority-pet { color: #4caf50; }
         .priority-value.priority-muted { color: #888; }
+        .camera-panel {
+            flex: 1;
+            min-height: 170px;
+            margin-top: 12px;
+            padding: 8px;
+            background: #080808;
+            border: 1px solid #353535;
+            border-radius: 8px;
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .camera-frame {
+            position: relative;
+            width: 100%;
+            min-height: 0;
+            background: #050505;
+            border-radius: 5px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #camera-stream {
+            display: none;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #camera-placeholder {
+            color: #666;
+            font-size: 13px;
+            text-align: center;
+            padding: 12px;
+        }
+        .camera-panel.live #camera-stream { display: block; }
+        .camera-panel.live #camera-placeholder { display: none; }
         .zone-name {
             display: inline-block;
             position: relative;
@@ -475,6 +530,7 @@
             .modal-content { overflow-y: auto; height: 96vh; }
             .modal-floorplan-panel { min-height: 480px; width: 100%; }
             .monitoring-panel { width: 100%; min-height: 360px; }
+            .camera-panel { min-height: 220px; }
         }
     </style>
 </head>
@@ -579,6 +635,12 @@
                         <span class="sensor-value" id="metric-time" style="font-size:14px;">-</span>
                     </div>
                 </div>
+                <div class="camera-panel" id="camera-panel">
+                    <div class="camera-frame">
+                        <img id="camera-stream" alt="현장 카메라 영상">
+                        <div id="camera-placeholder">카메라 연결 대기</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -590,6 +652,9 @@
         const connectBtn = document.getElementById('connect-btn');
         const connectionState = document.getElementById('connection-state');
         const ipInput = document.getElementById('ip-input');
+        const cameraPanel = document.getElementById('camera-panel');
+        const cameraStream = document.getElementById('camera-stream');
+        const cameraPlaceholder = document.getElementById('camera-placeholder');
 
         // 실제 센서 방향과 최대 표시 거리를 측정한 뒤 조정하세요.
         const SENSOR_LAYOUT = {
@@ -599,12 +664,58 @@
         };
         const POSITION_RENDER_INTERVAL_MS = 500;
         const POSITION_SMOOTHING_ALPHA = 0.35;
+        const DEFAULT_CAMERA_HOST = '192.168.0.5:8890';
+        const DEFAULT_CAMERA_PATH = '/stream.mjpg';
 
         let allLogs = [];
         let selectedRoom = null;
         let roomReadings = {};
         let positionRenderStates = {};
         let ws = null;
+        let cameraStreamUrl = '';
+
+        function cameraBaseUrl() {
+            const configured = new URLSearchParams(window.location.search).get('camera');
+            const value = (configured || DEFAULT_CAMERA_HOST).trim();
+            if (!value) return '';
+            if (/^https?:\/\//i.test(value)) return value.replace(/\/+$/, '');
+            return `http://${value.replace(/\/+$/, '')}`;
+        }
+
+        function cameraEndpoint() {
+            const baseUrl = cameraBaseUrl();
+            if (!baseUrl) return '';
+            const configuredPath = new URLSearchParams(window.location.search).get('cameraPath');
+            const path = (configuredPath || DEFAULT_CAMERA_PATH).trim();
+            if (/^https?:\/\//i.test(path)) return path;
+            return `${baseUrl}/${path.replace(/^\/+/, '')}`;
+        }
+
+        function startCameraStream() {
+            const endpoint = cameraEndpoint();
+            if (!endpoint) {
+                cameraPanel.classList.remove('live');
+                cameraPlaceholder.textContent = '카메라 주소가 설정되지 않았습니다.';
+                return;
+            }
+            cameraStreamUrl = endpoint;
+            cameraPanel.classList.remove('live');
+            cameraPlaceholder.textContent = '카메라 연결 중';
+            cameraStream.onload = () => cameraPanel.classList.add('live');
+            cameraStream.onerror = () => {
+                cameraPanel.classList.remove('live');
+                cameraPlaceholder.textContent = '카메라 연결 실패';
+            };
+            const separator = endpoint.includes('?') ? '&' : '?';
+            cameraStream.src = `${endpoint}${separator}t=${Date.now()}`;
+        }
+
+        function stopCameraStream() {
+            cameraStream.removeAttribute('src');
+            cameraPanel.classList.remove('live');
+            cameraPlaceholder.textContent = '카메라 연결 대기';
+            cameraStreamUrl = '';
+        }
 
         for (let floor = 4; floor >= 1; floor--) {
             const floorDiv = document.createElement('div');
@@ -746,7 +857,7 @@
         function hasRescueTarget(reading) {
             if (!reading) return false;
             const level = String(reading.rescue_priority?.level ?? '').toLowerCase();
-            if (level === 'danger' || level === 'normal') return true;
+            if (['danger', 'normal', 'low'].includes(level)) return true;
             if (level === 'none') return false;
             return reading.status === true;
         }
@@ -768,6 +879,7 @@
                 logStatus.textContent = '전체 수신 로그 (All)';
                 logStatus.style.color = '#888';
                 document.getElementById('floorplan-modal').style.display = 'none';
+                stopCameraStream();
             } else {
                 if (previousSelectedRoom !== null) {
                     cancelEstimatedPosition(previousSelectedRoom);
@@ -788,6 +900,7 @@
             document.getElementById('fp-401').style.display = roomNum === 401 ? 'block' : 'none';
             document.getElementById('fp-402').style.display = roomNum === 402 ? 'block' : 'none';
             document.getElementById('floorplan-modal').style.display = 'flex';
+            startCameraStream();
             renderRoomDetail(roomNum);
         }
 
@@ -808,9 +921,11 @@
             metricPriority.classList.remove(
                 'priority-critical',
                 'priority-normal',
+                'priority-pet',
                 'priority-muted'
             );
             if (priority.className) metricPriority.classList.add(priority.className);
+            setPriorityCardColor(priority.className);
 
             const aiConfidence = document.getElementById('metric-ai-confidence');
             if (ai?.ready) {
@@ -847,6 +962,7 @@
                     danger: 'priority-critical',
                     critical: 'priority-critical',
                     normal: 'priority-normal',
+                    low: 'priority-pet',
                     none: 'priority-muted',
                     pending: 'priority-muted'
                 };
@@ -860,7 +976,30 @@
                 return { text: '대상 없음', className: 'priority-muted' };
             }
 
+            const target = String(
+                reading.ai?.target ?? reading.ai?.scenario ?? ''
+            ).trim().toLowerCase();
+            if (['dog', 'pet', '개', '반려동물'].includes(target)) {
+                return { text: '3순위 : 반려동물', className: 'priority-pet' };
+            }
             return { text: 'AI 판정 대기', className: 'priority-muted' };
+        }
+
+        function setPriorityCardColor(priorityClass) {
+            const card = document.querySelector('.priority-card');
+            if (!card) return;
+            card.classList.remove(
+                'priority-card-critical',
+                'priority-card-normal',
+                'priority-card-pet'
+            );
+            const cardClassByPriority = {
+                'priority-critical': 'priority-card-critical',
+                'priority-normal': 'priority-card-normal',
+                'priority-pet': 'priority-card-pet'
+            };
+            const cardClass = cardClassByPriority[priorityClass];
+            if (cardClass) card.classList.add(cardClass);
         }
 
         function scheduleEstimatedPosition(roomNum, reading) {
@@ -977,6 +1116,11 @@
                 dot.tabIndex = 0;
                 container.append(dot);
             }
+            const priorityClass = formatRescuePriority(reading).className;
+            dot.classList.remove('priority-critical', 'priority-normal', 'priority-pet');
+            if (['priority-critical', 'priority-normal', 'priority-pet'].includes(priorityClass)) {
+                dot.classList.add(priorityClass);
+            }
             dot.style.left = `${targetX}px`;
             dot.style.top = `${targetY}px`;
             dot.setAttribute(
@@ -992,11 +1136,17 @@
             }
             label.style.left = `${targetX}px`;
             label.style.top = `${targetY}px`;
-            label.textContent = `${reading.distance_m.toFixed(2)} m · 점수 ${formatValue(reading.presence_score)}`;
+            const priorityText = formatRescuePriority(reading).text;
+            label.textContent = [
+                `${reading.distance_m.toFixed(2)} m`,
+                `점수 ${formatValue(reading.presence_score)}`,
+                priorityText
+            ].filter(Boolean).join(' · ');
         }
 
         function closeModal() {
             document.getElementById('floorplan-modal').style.display = 'none';
+            stopCameraStream();
             clearPositionMarkers();
             if (selectedRoom !== null) {
                 cancelEstimatedPosition(selectedRoom);

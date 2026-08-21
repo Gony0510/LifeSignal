@@ -55,10 +55,10 @@ class RescuePriorityEngine:
 
         if now < state.danger_until:
             if state.danger_reason == "fallen_detected":
-                label = "위험 · 쓰러짐 추정"
+                label = "1순위 : 쓰러짐 감지"
             else:
                 threshold = f"{self.sleeping_danger_after:g}"
-                label = f"위험 · {threshold}초 이상 대피 움직임 없음"
+                label = f"1순위 : {threshold}초 이상 호흡 모션 없음"
             return self._result(
                 level="danger",
                 rank=1,
@@ -77,7 +77,7 @@ class RescuePriorityEngine:
             return self._result(
                 level="normal",
                 rank=2,
-                label="보통 · 누운 상태 관찰 중",
+                label="2순위 : 누운 상태 관찰 중",
                 reason="sleeping_observed",
                 sleeping_elapsed=elapsed,
             )
@@ -85,15 +85,22 @@ class RescuePriorityEngine:
             return self._result(
                 level="normal",
                 rank=2,
-                label="보통 · 자력 대피 중",
+                label="2순위 : 자력 대피 중",
                 reason="evacuating",
             )
         if scenario == "no_signal":
             return self._result(
                 level="none",
-                rank=3,
+                rank=0,
                 label="구조 대상 없음",
                 reason="no_signal",
+            )
+        if scenario in {"dog", "pet", "반려동물", "개"}:
+            return self._result(
+                level="low",
+                rank=3,
+                label="3순위 : 반려동물",
+                reason="pet_detected",
             )
         return self.pending("unknown_scenario")
 

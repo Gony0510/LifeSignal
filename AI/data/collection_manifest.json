@@ -1,0 +1,62 @@
+[
+  {
+    "completed_at": "2026-08-20T08:25:11.291095+00:00",
+    "preset": "vpr100_empty_01",
+    "sensor": "vpr100",
+    "session_id": "empty_01",
+    "label": "empty",
+    "scenario": "empty",
+    "rows": 300,
+    "output": "/Users/gony0510/LifeSignal/AI/data/vpr100_samples.csv",
+    "expected_room": 401,
+    "expected_location": "거실A"
+  },
+  {
+    "completed_at": "2026-08-20T08:27:19.491406+00:00",
+    "preset": "vpr100_empty_01",
+    "sensor": "vpr100",
+    "session_id": "empty_01",
+    "label": "empty",
+    "scenario": "empty",
+    "rows": 300,
+    "output": "/Users/gony0510/LifeSignal/AI/data/vpr100_samples.csv",
+    "expected_room": 401,
+    "expected_location": "거실A"
+  },
+  {
+    "completed_at": "2026-08-20T08:45:50.349534+00:00",
+    "preset": "vpr100_human_danger_01",
+    "sensor": "vpr100",
+    "session_id": "human_danger_01",
+    "label": "human",
+    "scenario": "human_danger",
+    "rows": 299,
+    "output": "/Users/gony0510/LifeSignal/AI/data/vpr100_samples.csv",
+    "expected_room": 401,
+    "expected_location": "거실A"
+  },
+  {
+    "completed_at": "2026-08-20T08:49:11.371688+00:00",
+    "preset": "vpr100_human_danger_02",
+    "sensor": "vpr100",
+    "session_id": "human_danger_02",
+    "label": "human",
+    "scenario": "human_danger",
+    "rows": 299,
+    "output": "/Users/gony0510/LifeSignal/AI/data/vpr100_samples.csv",
+    "expected_room": 401,
+    "expected_location": "거실A"
+  },
+  {
+    "completed_at": "2026-08-20T08:57:42.676903+00:00",
+    "preset": "vpr100_human_danger_02",
+    "sensor": "vpr100",
+    "session_id": "human_danger_02",
+    "label": "human",
+    "scenario": "human_danger",
+    "rows": 300,
+    "output": "/Users/gony0510/LifeSignal/AI/data/vpr100_samples.csv",
+    "expected_room": 401,
+    "expected_location": "거실A"
+  }
+]

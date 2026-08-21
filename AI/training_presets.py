@@ -43,7 +43,7 @@ class SensorTrainingPreset:
 VPR100_PRESET = SensorTrainingPreset(
     sensor_type="vpr100",
     display_name="V-PR100",
-    channels=("presence_score", "status"),
+    channels=("presence_score", "distance_mm", "status"),
     required_metadata=("session_id", "label", "sensor"),
     value_channel="presence_score",
     default_data="AI/data/vpr100_samples.csv",

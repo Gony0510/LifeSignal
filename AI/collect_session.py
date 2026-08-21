@@ -90,6 +90,9 @@ def _build_args(preset: CollectionPreset, args: argparse.Namespace) -> argparse.
             label=preset.label,
             session=preset.session_id,
             duration=duration,
+            sample_interval=args.sample_interval,
+            startup_timeout=args.startup_timeout,
+            sample_timeout=args.sample_timeout,
             output=output,
             room=args.room if args.room is not None else preset.expected_room,
             location=(
@@ -186,6 +189,12 @@ def parse_args() -> argparse.Namespace:
         help="사용 가능한 수집 프리셋을 표시하고 종료",
     )
     parser.add_argument("--duration", type=float, help="기본 60초를 덮어쓸 수집 시간")
+    parser.add_argument(
+        "--sample-interval",
+        type=float,
+        default=0.2,
+        help="V-PR100 학습 데이터 저장 간격(초, 기본 0.2)",
+    )
     parser.add_argument("--output", help="프리셋 기본 CSV 경로를 덮어쓸 경로")
     parser.add_argument("--server", default="ws://127.0.0.1:8881")
     parser.add_argument("--port", help="C4001 USB 시리얼 포트")
@@ -224,6 +233,8 @@ def main() -> None:
         raise SystemExit("--preset을 지정하거나 --list로 수집 목록을 확인해주세요.")
 
     preset = get_preset(args.preset)
+    if args.sample_interval <= 0:
+        raise SystemExit("수집 간격은 0보다 커야 합니다.")
     _validate_args(preset, args)
     _run_collection(preset, args)
 

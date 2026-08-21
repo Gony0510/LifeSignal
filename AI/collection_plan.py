@@ -68,6 +68,41 @@ def _build_presets() -> tuple[CollectionPreset, ...]:
                 )
             )
 
+        if sensor == "vpr100":
+            vibration_instructions = (
+                (
+                    "센서 앞을 비운 상태에서 사람이 주변을 지나가며 생기는 "
+                    "현실적인 약한 책상 진동을 재현합니다."
+                ),
+                (
+                    "센서 앞을 비운 상태에서 책상을 가볍게 건드리거나 "
+                    "주변 인형 펌프가 작동할 때의 진동을 재현합니다."
+                ),
+            )
+            for index, vibration_instruction in enumerate(
+                vibration_instructions,
+                start=1,
+            ):
+                session_id = f"empty_vibration_{index:02d}"
+                presets.append(
+                    CollectionPreset(
+                        name=f"vpr100_{session_id}",
+                        sensor="vpr100",
+                        session_id=session_id,
+                        label="empty",
+                        scenario="empty_vibration",
+                        output=output,
+                        duration=30.0,
+                        include_inactive=True,
+                        expected_room=room,
+                        expected_location=location,
+                        instruction=(
+                            f"{placement} {vibration_instruction} "
+                            "센서 앞에는 사람이나 개 인형을 두지 않습니다."
+                        ),
+                    )
+                )
+
         for index in (1, 2):
             session_id = f"dog_{index:02d}"
             expected_room = 402 if sensor == "c4001" else room
