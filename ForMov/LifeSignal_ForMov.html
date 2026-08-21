@@ -664,8 +664,7 @@
         };
         const POSITION_RENDER_INTERVAL_MS = 500;
         const POSITION_SMOOTHING_ALPHA = 0.35;
-        const DEFAULT_CAMERA_HOST = '192.168.0.5:8890';
-        const DEFAULT_CAMERA_PATH = '/stream.mjpg';
+        const DEFAULT_CAMERA_PROXY_URL = 'http://192.168.0.5:8881/camera/stream.mjpg';
 
         let allLogs = [];
         let selectedRoom = null;
@@ -676,19 +675,24 @@
 
         function cameraBaseUrl() {
             const configured = new URLSearchParams(window.location.search).get('camera');
-            const value = (configured || DEFAULT_CAMERA_HOST).trim();
+            const value = (configured || '').trim();
             if (!value) return '';
             if (/^https?:\/\//i.test(value)) return value.replace(/\/+$/, '');
             return `http://${value.replace(/\/+$/, '')}`;
         }
 
         function cameraEndpoint() {
-            const baseUrl = cameraBaseUrl();
-            if (!baseUrl) return '';
-            const configuredPath = new URLSearchParams(window.location.search).get('cameraPath');
-            const path = (configuredPath || DEFAULT_CAMERA_PATH).trim();
-            if (/^https?:\/\//i.test(path)) return path;
-            return `${baseUrl}/${path.replace(/^\/+/, '')}`;
+            const configuredBaseUrl = cameraBaseUrl();
+            if (configuredBaseUrl) {
+                const configuredPath = new URLSearchParams(window.location.search).get('cameraPath');
+                const path = (configuredPath || '/stream.mjpg').trim();
+                if (/^https?:\/\//i.test(path)) return path;
+                return `${configuredBaseUrl}/${path.replace(/^\/+/, '')}`;
+            }
+            if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+                return `${window.location.origin}/camera/stream.mjpg`;
+            }
+            return DEFAULT_CAMERA_PROXY_URL;
         }
 
         function startCameraStream() {

@@ -692,7 +692,7 @@
         const POSITION_RENDER_INTERVAL_MS = 500;
         const POSITION_SMOOTHING_ALPHA = 0.35;
         const AUTO_RECONNECT_DELAY_MS = 2000;
-        const DEFAULT_CAMERA_HOST = '192.168.0.5:8890';
+        const DEFAULT_CAMERA_PROXY_URL = 'http://192.168.0.5:8881/camera/stream.mjpg';
 
         let allLogs = [];
         let selectedRoom = null;
@@ -706,20 +706,29 @@
 
         function cameraBaseUrl() {
             const configured = new URLSearchParams(window.location.search).get('camera');
-            const value = (configured || DEFAULT_CAMERA_HOST).trim();
+            const value = (configured || '').trim();
             if (!value) return '';
             if (/^https?:\/\//i.test(value)) return value.replace(/\/+$/, '');
             return `http://${value.replace(/\/+$/, '')}`;
         }
 
+        function cameraEndpoint() {
+            const configuredBaseUrl = cameraBaseUrl();
+            if (configuredBaseUrl) return `${configuredBaseUrl}/stream.mjpg`;
+            if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+                return `${window.location.origin}/camera/stream.mjpg`;
+            }
+            return DEFAULT_CAMERA_PROXY_URL;
+        }
+
         function startCameraStream() {
-            const baseUrl = cameraBaseUrl();
-            if (!baseUrl) {
+            const endpoint = cameraEndpoint();
+            if (!endpoint) {
                 cameraPanel.classList.remove('live');
                 cameraPlaceholder.textContent = '카메라 주소가 설정되지 않았습니다.';
                 return;
             }
-            cameraStreamUrl = `${baseUrl}/stream.mjpg`;
+            cameraStreamUrl = endpoint;
             cameraPanel.classList.remove('live');
             cameraPlaceholder.textContent = '카메라 연결 중';
             cameraStream.onload = () => cameraPanel.classList.add('live');
@@ -727,7 +736,8 @@
                 cameraPanel.classList.remove('live');
                 cameraPlaceholder.textContent = '카메라 연결 실패';
             };
-            cameraStream.src = `${cameraStreamUrl}?t=${Date.now()}`;
+            const separator = endpoint.includes('?') ? '&' : '?';
+            cameraStream.src = `${endpoint}${separator}t=${Date.now()}`;
         }
 
         function stopCameraStream() {

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import contextlib
 import json
+import os
 import random
 from datetime import datetime, timezone
 from pathlib import Path
 from time import monotonic
 
-from aiohttp import WSMsgType, web
+from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
 
 from AI.inference import SensorAIEngine, load_classifier
 from AI.priority import build_rescue_priority
@@ -22,6 +25,11 @@ sensor_ai_engines: dict[str, SensorAIEngine] = {}
 survivor_state_tracker = SurvivorStateTracker()
 DETECTION_HOLD_SECONDS = 1.0
 C4001_DEMO_UPDATE_INTERVAL_SECONDS = 5.0
+DEFAULT_CAMERA_STREAM_URL = "http://192.168.0.5:8890/stream.mjpg"
+CAMERA_STREAM_URL = os.getenv(
+    "LIFESIGNAL_CAMERA_STREAM_URL",
+    DEFAULT_CAMERA_STREAM_URL,
+)
 HTML_PATH = Path(__file__).with_name("LifeSignal.html")
 ARTIFACT_DIR = Path(__file__).with_name("AI") / "artifacts"
 DEFAULT_MODEL_CANDIDATES = {
@@ -389,6 +397,9 @@ async def websocket_handler(
 
 
 async def http_or_websocket(request: web.Request) -> web.StreamResponse:
+    if request.path == "/camera/stream.mjpg":
+        return await camera_stream_proxy(request)
+
     websocket = web.WebSocketResponse(
         protocols=("arduino",),
         heartbeat=30,
@@ -404,6 +415,52 @@ async def http_or_websocket(request: web.Request) -> web.StreamResponse:
     if request.path == "/favicon.ico":
         return web.Response(status=204)
     raise web.HTTPNotFound(text="LifeSignal 페이지를 찾을 수 없습니다.")
+
+
+async def camera_stream_proxy(request: web.Request) -> web.StreamResponse:
+    """카메라 MJPEG를 같은 서버 주소로 중계해 브라우저 차단을 피합니다."""
+    timeout = ClientTimeout(total=None, connect=5.0)
+    try:
+        async with ClientSession(timeout=timeout) as session:
+            async with session.get(
+                CAMERA_STREAM_URL,
+                headers={"Accept": "multipart/x-mixed-replace"},
+            ) as upstream:
+                if upstream.status != 200:
+                    return web.Response(
+                        status=502,
+                        text=(
+                            "카메라 서버가 스트림을 제공하지 않습니다. "
+                            f"HTTP {upstream.status}"
+                        ),
+                    )
+
+                response = web.StreamResponse(status=200)
+                response.headers["Content-Type"] = upstream.headers.get(
+                    "Content-Type",
+                    "multipart/x-mixed-replace; boundary=frame",
+                )
+                response.headers["Cache-Control"] = "no-store"
+                response.headers["Access-Control-Allow-Origin"] = "*"
+                await response.prepare(request)
+                try:
+                    async for chunk in upstream.content.iter_chunked(64 * 1024):
+                        await response.write(chunk)
+                except (ConnectionResetError, BrokenPipeError):
+                    return response
+                except asyncio.CancelledError:
+                    raise
+                finally:
+                    with contextlib.suppress(ConnectionResetError, BrokenPipeError):
+                        await response.write_eof()
+                return response
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        return web.Response(
+            status=502,
+            text=f"카메라 스트림 연결 실패: {exc}",
+        )
 
 
 def create_app() -> web.Application:
