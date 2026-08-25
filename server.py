@@ -24,8 +24,12 @@ ai_engine = SensorAIEngine(None, update_interval=5.0)
 sensor_ai_engines: dict[str, SensorAIEngine] = {}
 survivor_state_tracker = SurvivorStateTracker()
 DETECTION_HOLD_SECONDS = 1.0
+C4001_DETECTION_HOLD_SECONDS = 3.0
 C4001_DEMO_UPDATE_INTERVAL_SECONDS = 5.0
-DEFAULT_CAMERA_STREAM_URL = "http://192.168.0.5:8890/stream.mjpg"
+# The camera server runs on the same Raspberry Pi as this service.  Keeping
+# the upstream address on loopback means a Wi-Fi/DHCP IP change does not break
+# the camera proxy.
+DEFAULT_CAMERA_STREAM_URL = "http://127.0.0.1:8890/stream.mjpg"
 CAMERA_STREAM_URL = os.getenv(
     "LIFESIGNAL_CAMERA_STREAM_URL",
     DEFAULT_CAMERA_STREAM_URL,
@@ -197,11 +201,23 @@ def select_ai_engine(data: dict) -> SensorAIEngine | None:
 
 
 class DetectionHoldFilter:
-    """순간적인 감지 해제를 센서·위치별로 짧게 유예합니다."""
+    """순간적인 감지 해제를 센서·위치별로 유예합니다.
+
+    C4001은 센서 자체의 감지 펄스가 짧고 전송 간격도 약 1초이므로,
+    V-PR100보다 긴 해제 유예 시간을 적용해 대시보드 점이 깜빡이지 않게 합니다.
+    """
 
     def __init__(self, hold_seconds: float = DETECTION_HOLD_SECONDS) -> None:
         self.hold_seconds = hold_seconds
         self.last_detected_at: dict[str, float] = {}
+
+    @staticmethod
+    def hold_seconds_for(data: dict, default: float) -> float:
+        return (
+            C4001_DETECTION_HOLD_SECONDS
+            if sensor_family(data) == "c4001"
+            else default
+        )
 
     def apply(self, data: dict, *, now: float | None = None) -> dict:
         key = sensor_key(data)
@@ -219,9 +235,10 @@ class DetectionHoldFilter:
             return stabilized
 
         last_detected = self.last_detected_at.get(key)
+        hold_seconds = self.hold_seconds_for(data, self.hold_seconds)
         if (
             last_detected is not None
-            and current_time - last_detected < self.hold_seconds
+            and current_time - last_detected < hold_seconds
         ):
             stabilized["status"] = True
         else:

@@ -692,7 +692,9 @@
         const POSITION_RENDER_INTERVAL_MS = 500;
         const POSITION_SMOOTHING_ALPHA = 0.35;
         const AUTO_RECONNECT_DELAY_MS = 2000;
-        const DEFAULT_CAMERA_PROXY_URL = 'http://192.168.0.5:8881/camera/stream.mjpg';
+        // mDNS keeps the dashboard usable when the Pi receives a new DHCP IP.
+        const DEFAULT_SERVER_ADDRESS = 'raspberrypi.local:8881';
+        const DEFAULT_CAMERA_PROXY_URL = `http://${DEFAULT_SERVER_ADDRESS}/camera/stream.mjpg`;
 
         let allLogs = [];
         let selectedRoom = null;
@@ -1445,7 +1447,11 @@
             addLog(0, '현재 Raspberry Pi 서버에 자동 연결합니다.');
             connectWebSocket(true);
         } else {
-            addLog(0, '중계 서버 주소를 입력한 뒤 망 접속 버튼을 눌러주세요.');
+            // When opened as a local file, use the stable mDNS hostname instead
+            // of a stale numeric IP.  The user can still overwrite this field.
+            ipInput.value = DEFAULT_SERVER_ADDRESS;
+            addLog(0, `Raspberry Pi 자동 연결 주소: ${DEFAULT_SERVER_ADDRESS}`);
+            connectWebSocket(true);
         }
     </script>
 </body>
